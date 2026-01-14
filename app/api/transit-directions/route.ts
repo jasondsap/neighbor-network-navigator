@@ -29,6 +29,7 @@ interface TransitRoute {
     steps: TransitStep[];
     warnings: string[];
     copyrights: string;
+    hasTransit?: boolean;
 }
 
 export async function POST(request: NextRequest) {
