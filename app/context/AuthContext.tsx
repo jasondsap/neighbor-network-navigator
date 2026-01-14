@@ -184,11 +184,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setSession(null);
-    setLoading(false);
+    try {
+      // Clear state first
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+      
+      // Sign out from Supabase with global scope to clear all sessions
+      await supabase.auth.signOut({ scope: 'global' });
+      
+      // Force reload to clear any cached state
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Even if there's an error, redirect to login
+      window.location.href = '/login';
+    }
   }, [supabase]);
 
   const value = useMemo(() => ({

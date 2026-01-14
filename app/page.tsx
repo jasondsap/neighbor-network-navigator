@@ -8,10 +8,11 @@ import {
     Mail, Clock, ChevronRight, Filter, X, Loader2, 
     MessageCircle, Send, Sparkles, ExternalLink, FileText,
     Info, CheckCircle, AlertCircle, Lightbulb, GraduationCap, Shield,
-    DoorOpen, Accessibility, LogOut, Star, Map, List
+    DoorOpen, Accessibility, LogOut, Star, Map, List, Bus
 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import dynamic from 'next/dynamic';
+import BusDirectionsModal from './components/BusDirectionsModal';
 
 // Dynamically import the map component to avoid SSR issues
 const ResourceMap = dynamic(() => import('./components/ResourceMap'), { 
@@ -121,6 +122,7 @@ export default function ResourceNavigator() {
     const [favorites, setFavorites] = useState<Set<string>>(new Set());
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+    const [busDirectionsResource, setBusDirectionsResource] = useState<Resource | null>(null);
 
     // Fetch favorites when user loads
     const fetchFavorites = async () => {
@@ -250,7 +252,10 @@ export default function ResourceNavigator() {
     const getCategoryIcon = (name: string) => categoryIcons[name] || Package;
     const getCategoryColor = (name: string) => categoryColors[name] || '#607D8B';
     const formatPhone = (phone: string) => phone ? phone.replace(/\s+/g, ' ').trim() : null;
-    const handleSignOut = async () => { await signOut(); router.push('/login'); };
+    const handleSignOut = async () => { 
+        await signOut(); 
+        // signOut now handles the redirect internally
+    };
 
     if (authLoading) {
         return (
@@ -509,6 +514,19 @@ export default function ResourceNavigator() {
                                                 {resource.phone && <div className="flex items-center gap-2 text-gray-500"><Phone className="w-3.5 h-3.5" /><span className="line-clamp-1">{formatPhone(resource.phone)}</span></div>}
                                                 {resource.address && <div className="flex items-center gap-2 text-gray-500"><MapPin className="w-3.5 h-3.5 flex-shrink-0" /><span className="line-clamp-1">{resource.address}</span></div>}
                                             </div>
+                                            {/* Bus Directions Button */}
+                                            {resource.address && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setBusDirectionsResource(resource);
+                                                    }}
+                                                    className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#2E4A8E]/10 hover:bg-[#2E4A8E]/20 text-[#2E4A8E] rounded-lg text-sm font-medium transition-colors"
+                                                >
+                                                    <Bus className="w-4 h-4" />
+                                                    Bus Directions
+                                                </button>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -697,9 +715,32 @@ export default function ResourceNavigator() {
                             {selectedResource.tips_tricks && <div className="p-4 bg-[#2A8B8B]/10 rounded-xl"><div className="flex items-center gap-2 mb-2"><Lightbulb className="w-5 h-5 text-[#2A8B8B]" /><h3 className="font-semibold text-gray-900">Tips & Tricks</h3></div><p className="text-gray-700">{selectedResource.tips_tricks}</p></div>}
                             {selectedResource.notes && <div><h3 className="font-semibold text-gray-900 mb-2">Additional Notes</h3><p className="text-gray-600">{selectedResource.notes}</p></div>}
                             {selectedResource.point_of_contact && <div className="p-4 bg-gray-50 rounded-xl"><h3 className="font-semibold text-gray-900 mb-2">Point of Contact</h3><p className="text-gray-600">{selectedResource.point_of_contact}</p></div>}
+                            
+                            {/* Bus Directions Button in Modal */}
+                            {selectedResource.address && (
+                                <button
+                                    onClick={() => {
+                                        setBusDirectionsResource(selectedResource);
+                                        setSelectedResource(null);
+                                    }}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#2E4A8E] hover:bg-[#243d73] text-white rounded-xl font-medium transition-colors"
+                                >
+                                    <Bus className="w-5 h-5" />
+                                    Get TARC Bus Directions
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Bus Directions Modal */}
+            {busDirectionsResource && (
+                <BusDirectionsModal
+                    resource={busDirectionsResource}
+                    onClose={() => setBusDirectionsResource(null)}
+                    categoryColor={categoryColors[busDirectionsResource.category] || '#607D8B'}
+                />
             )}
         </div>
     );
