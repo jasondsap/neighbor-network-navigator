@@ -138,16 +138,22 @@ function getQualifier(services: Array<{ f1: string; f2: string; f3: string }>, c
 }
 
 // Search local resources in Supabase
-async function searchLocalResources(query: string, category?: string, limit: number = 50): Promise<LocalResource[]> {
+async function searchLocalResources(query: string, category?: string, subcategory?: string, limit: number = 500): Promise<LocalResource[]> {
     try {
         let queryBuilder = supabase
             .from('local_resources')
             .select('*')
-            .eq('is_active', true);
+            .eq('is_active', true)
+            .order('organization_name', { ascending: true });
 
         // Category filter
         if (category && category !== 'all') {
             queryBuilder = queryBuilder.eq('category', category);
+        }
+
+        // Subcategory filter
+        if (subcategory && subcategory !== 'all') {
+            queryBuilder = queryBuilder.eq('subcategory', subcategory);
         }
 
         // Text search if query provided
@@ -215,8 +221,9 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get('q') || '';
     const category = searchParams.get('category') || 'all';
+    const subcategory = searchParams.get('subcategory') || 'all';
     const source = searchParams.get('source') || 'all'; // 'local', 'samhsa', 'all'
-    const action = searchParams.get('action') || 'search'; // 'search', 'categories', 'by-category'
+    const action = searchParams.get('action') || 'search'; // 'search', 'categories', 'by-category', 'subcategories'
     const lat = parseFloat(searchParams.get('lat') || String(LOUISVILLE_LAT));
     const lng = parseFloat(searchParams.get('lng') || String(LOUISVILLE_LNG));
     const radius = parseInt(searchParams.get('radius') || '50');
@@ -226,6 +233,34 @@ export async function GET(request: NextRequest) {
         if (action === 'categories') {
             const categories = await getCategories();
             return NextResponse.json({ categories });
+        }
+
+        // Get subcategories for a specific category
+        if (action === 'subcategories' && category !== 'all') {
+            const { data, error } = await supabase
+                .from('local_resources')
+                .select('subcategory')
+                .eq('category', category)
+                .eq('is_active', true)
+                .not('subcategory', 'is', null);
+            
+            if (error) throw error;
+            
+            // Count resources per subcategory
+            const subcategoryCounts: Record<string, number> = {};
+            (data || []).forEach((r: { subcategory: string }) => {
+                const sub = r.subcategory;
+                if (sub) {
+                    subcategoryCounts[sub] = (subcategoryCounts[sub] || 0) + 1;
+                }
+            });
+            
+            // Convert to array and sort by count
+            const subcategories = Object.entries(subcategoryCounts)
+                .map(([name, count]) => ({ name, count }))
+                .sort((a, b) => b.count - a.count);
+            
+            return NextResponse.json({ subcategories, category });
         }
 
         // Get resources by specific category
@@ -244,7 +279,7 @@ export async function GET(request: NextRequest) {
 
         // Search local resources
         if (source === 'all' || source === 'local') {
-            localResults = await searchLocalResources(query, category);
+            localResults = await searchLocalResources(query, category, subcategory);
         }
 
         // Search SAMHSA for treatment-related queries

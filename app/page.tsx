@@ -123,6 +123,8 @@ export default function ResourceNavigator() {
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
     const [busDirectionsResource, setBusDirectionsResource] = useState<Resource | null>(null);
+    const [subcategories, setSubcategories] = useState<{name: string; count: number}[]>([]);
+    const [selectedSubcategory, setSelectedSubcategory] = useState('all');
 
     // Fetch favorites when user loads
     const fetchFavorites = async () => {
@@ -199,11 +201,11 @@ export default function ResourceNavigator() {
         }
     };
 
-    const handleSearch = async (query: string = searchQuery, category: string = selectedCategory) => {
+    const handleSearch = async (query: string = searchQuery, category: string = selectedCategory, subcategory: string = selectedSubcategory) => {
         setIsLoading(true);
         setHasSearched(true);
         try {
-            const params = new URLSearchParams({ q: query, category: category, source: sourceFilter });
+            const params = new URLSearchParams({ q: query, category: category, subcategory: subcategory, source: sourceFilter });
             if (zipFilter) params.append('zip', zipFilter);
             const response = await fetch(`/api/resource-search?${params}`);
             const data = await response.json();
@@ -216,9 +218,30 @@ export default function ResourceNavigator() {
         }
     };
 
-    const handleCategoryClick = (categoryName: string) => {
+    const handleCategoryClick = async (categoryName: string) => {
         setSelectedCategory(categoryName);
-        handleSearch(searchQuery, categoryName);
+        setSelectedSubcategory('all');
+        setSubcategories([]);
+        
+        // Fetch subcategories if a specific category is selected
+        if (categoryName !== 'all') {
+            try {
+                const response = await fetch(`/api/resource-search?action=subcategories&category=${encodeURIComponent(categoryName)}`);
+                const data = await response.json();
+                if (data.subcategories) {
+                    setSubcategories(data.subcategories);
+                }
+            } catch (error) {
+                console.error('Error fetching subcategories:', error);
+            }
+        }
+        
+        handleSearch(searchQuery, categoryName, 'all');
+    };
+
+    const handleSubcategoryClick = (subcategoryName: string) => {
+        setSelectedSubcategory(subcategoryName);
+        handleSearch(searchQuery, selectedCategory, subcategoryName);
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -415,6 +438,40 @@ export default function ResourceNavigator() {
                                 );
                             })}
                         </div>
+
+                        {/* Subcategories */}
+                        {subcategories.length > 0 && selectedCategory !== 'all' && !showFavoritesOnly && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-sm text-gray-500">Filter by type:</span>
+                                </div>
+                                <div className="flex gap-2 flex-wrap">
+                                    <button 
+                                        onClick={() => handleSubcategoryClick('all')}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                                            selectedSubcategory === 'all' 
+                                                ? 'bg-gray-800 text-white' 
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        All {selectedCategory}
+                                    </button>
+                                    {subcategories.map((sub) => (
+                                        <button 
+                                            key={sub.name} 
+                                            onClick={() => handleSubcategoryClick(sub.name)}
+                                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                                                selectedSubcategory === sub.name 
+                                                    ? 'bg-gray-800 text-white' 
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            {sub.name} ({sub.count})
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Results */}
@@ -506,6 +563,9 @@ export default function ResourceNavigator() {
                                             </div>
                                             <div className="flex flex-wrap gap-2 mb-3">
                                                 <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: `${color}15`, color }}>{resource.category}</span>
+                                                {resource.subcategory && resource.subcategory !== resource.category && (
+                                                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">{resource.subcategory}</span>
+                                                )}
                                                 {resource.source === 'SAMHSA' && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">SAMHSA</span>}
                                                 {resource.distance_miles && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">{resource.distance_miles.toFixed(1)} mi</span>}
                                             </div>
