@@ -41,7 +41,7 @@ export async function requireAdmin(): Promise<{
     }
 
     const rows = await sql`SELECT role FROM users WHERE id = ${userId}`;
-    const role = rows[0]?.role;
+    const role = (rows as any[])[0]?.role;
 
     if (role !== 'admin') {
         throw new NotAdminError();
