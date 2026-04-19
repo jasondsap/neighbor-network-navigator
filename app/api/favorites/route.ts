@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            favorite: result[0] ?? null,   // null if it was already favorited
+            favorite: (result as any[])[0] ?? null,   // null if it was already favorited
         });
     } catch (error) {
         console.error('Error adding favorite:', error);
