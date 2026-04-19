@@ -53,7 +53,7 @@ export async function requireRole(allowedRoles: string[]) {
     if (!userId) throw new Error('User not found');
 
     const rows = await sql`SELECT role FROM users WHERE id = ${userId}`;
-    const role = rows[0]?.role;
+    const role = (rows as any[])[0]?.role;
 
     if (!role || !allowedRoles.includes(role)) {
         throw new Error('Insufficient permissions');
@@ -69,15 +69,15 @@ export async function getInternalUserId(
     cognitoSub: string,
     email?: string | null
 ): Promise<string | null> {
-    let result = await sql`
+    let result = (await sql`
         SELECT id FROM users WHERE cognito_sub = ${cognitoSub}
-    `;
+    `) as any[];
     if (result[0]?.id) return result[0].id;
 
     if (email) {
-        result = await sql`
+        result = (await sql`
             SELECT id FROM users WHERE email = ${email}
-        `;
+        `) as any[];
         if (result[0]?.id) {
             await sql`
                 UPDATE users SET cognito_sub = ${cognitoSub} WHERE id = ${result[0].id}
