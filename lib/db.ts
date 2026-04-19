@@ -111,9 +111,9 @@ export async function hardDelete(table: string, id: string): Promise<boolean> {
 // ============================================================================
 
 export async function getOrCreateUser(cognitoSub: string, email: string, name?: string) {
-    const existing = await sql`
+    const existing = (await sql`
         SELECT * FROM users WHERE cognito_sub = ${cognitoSub}
-    `;
+    `) as any[];
 
     if (existing.length > 0) {
         await sql`
@@ -125,11 +125,11 @@ export async function getOrCreateUser(cognitoSub: string, email: string, name?: 
     const [firstName, ...lastParts] = (name || '').split(' ');
     const lastName = lastParts.join(' ');
 
-    const newUser = await sql`
+    const newUser = (await sql`
         INSERT INTO users (cognito_sub, email, first_name, last_name, last_login_at)
         VALUES (${cognitoSub}, ${email}, ${firstName || null}, ${lastName || null}, NOW())
         RETURNING *
-    `;
+    `) as any[];
 
     return newUser[0];
 }
@@ -194,9 +194,9 @@ export async function getSubcategoriesWithCounts(category?: string) {
 }
 
 export async function getResourceById(id: string) {
-    const result = await sql`
+    const result = (await sql`
         SELECT * FROM resources WHERE id = ${id} AND is_active = TRUE
-    `;
+    `) as any[];
     return result[0] || null;
 }
 
