@@ -1,37 +1,25 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import { AuthProvider } from "./context/AuthContext";
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { Providers } from './providers';
 
-const inter = Inter({ 
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "Resource Navigator | Louisville Neighbor Network",
-  description: "Find community resources in Louisville, KY. Connect with housing, food, healthcare, employment, and more through the Neighbor Network.",
-  keywords: ["Louisville", "resources", "community", "help", "housing", "food", "healthcare", "Kentucky"],
-  authors: [{ name: "Louisville Neighbor Network" }],
-  openGraph: {
-    title: "Resource Navigator | Louisville Neighbor Network",
-    description: "Find community resources in Louisville, KY",
-    type: "website",
-  },
+    title: 'Neighbor Network Navigator',
+    description: 'Resource navigator for South Louisville Community Ministries',
 };
 
 export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="en">
-      <body className={`${inter.variable} font-sans antialiased`}>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
-      </body>
-    </html>
-  );
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    return (
+        <html lang="en">
+            <body className={inter.className}>
+                <Providers>{children}</Providers>
+            </body>
+        </html>
+    );
 }

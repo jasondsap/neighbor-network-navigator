@@ -1,15 +1,24 @@
+/**
+ * app/api/resource-search/route.ts
+ *
+ * Combined search endpoint:
+ *   - Local resources from Neon (via lib/db.ts)
+ *   - SAMHSA treatment facilities via live API (unchanged from Supabase version)
+ *
+ * Gated behind NextAuth — returns 401 if the caller isn't signed in.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { requireAuth } from '@/lib/auth';
+import { searchResources, getCategories } from '@/lib/db';
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-// Louisville coordinates
+// Louisville, KY — default geocode for SAMHSA radius search
 const LOUISVILLE_LAT = 38.2527;
 const LOUISVILLE_LNG = -85.7585;
 
+// ============================================================================
+// SAMHSA — live API, unchanged from the Supabase-era route
+// ============================================================================
 interface SAMHSAFacility {
     name1: string;
     name2: string | null;
@@ -27,53 +36,43 @@ interface SAMHSAFacility {
     services: Array<{ f1: string; f2: string; f3: string }>;
 }
 
-interface LocalResource {
-    id: string;
-    organization_name: string;
-    program_name: string | null;
-    category: string;
-    subcategory: string | null;
-    service_description: string | null;
-    address: string | null;
-    city: string;
-    state: string;
-    zip: string | null;
-    phone: string | null;
-    email: string | null;
-    website: string | null;
-    hours: string | null;
-    qualifier_geography: string | null;
-    qualifier_age: string | null;
-    qualifier_income: string | null;
-    qualifier_cohort: string | null;
-    qualifier_misc: string | null;
-    required_documents: string | null;
-    tips_tricks: string | null;
-    notes: string | null;
-    point_of_contact: string | null;
-    source: string;
+function getServiceTypes(services: Array<{ f1: string; f2: string; f3: string }>): string {
+    const setting = services.find(s => s.f2 === 'SET');
+    return setting?.f3 || '';
 }
 
-// Search SAMHSA API for treatment facilities
-async function searchSAMHSA(query: string, lat: number, lng: number, radiusMiles: number = 50): Promise<any[]> {
+function getServiceDescription(services: Array<{ f1: string; f2: string; f3: string }>): string {
+    const typeOfCare = services.find(s => s.f2 === 'TC');
+    const setting    = services.find(s => s.f2 === 'SET');
+    return [typeOfCare?.f3, setting?.f3].filter(Boolean).join('. ') || 'Treatment services available';
+}
+
+function getQualifier(services: Array<{ f1: string; f2: string; f3: string }>, code: string): string | null {
+    return services.find(s => s.f2 === code)?.f3 || null;
+}
+
+async function searchSAMHSA(query: string, lat: number, lng: number, radiusMiles = 50) {
     try {
-        // Convert miles to meters (1 mile = 1609.34 meters)
         const radiusMeters = radiusMiles * 1609.34;
-        
-        // Determine service type based on query
-        let sType = 'both'; // substance abuse and mental health
-        const lowerQuery = query.toLowerCase();
-        if (lowerQuery.includes('mental health') || lowerQuery.includes('counseling') || lowerQuery.includes('therapy')) {
+
+        // Pick service type based on query keywords
+        let sType = 'both';
+        const q = query.toLowerCase();
+        if (q.includes('mental health') || q.includes('counseling') || q.includes('therapy')) {
             sType = 'mh';
-        } else if (lowerQuery.includes('substance') || lowerQuery.includes('addiction') || lowerQuery.includes('detox') || lowerQuery.includes('mat') || lowerQuery.includes('suboxone')) {
+        } else if (q.includes('substance') || q.includes('addiction') || q.includes('detox') ||
+                   q.includes('mat') || q.includes('suboxone')) {
             sType = 'sa';
         }
 
-        const url = `https://findtreatment.gov/locator/exportsAsJson/v2?sAddr=${lat},${lng}&limitType=2&limitValue=${radiusMeters}&sType=${sType}&pageSize=50&page=1&sort=0`;
-        
+        const url =
+            `https://findtreatment.gov/locator/exportsAsJson/v2` +
+            `?sAddr=${lat},${lng}&limitType=2&limitValue=${radiusMeters}` +
+            `&sType=${sType}&pageSize=50&page=1&sort=0`;
+
         const response = await fetch(url, {
-            headers: { 'Accept': 'application/json' },
-            next: { revalidate: 3600 } // Cache for 1 hour
+            headers: { Accept: 'application/json' },
+            next: { revalidate: 3600 },   // Edge cache for 1 hour
         });
 
         if (!response.ok) {
@@ -82,8 +81,7 @@ async function searchSAMHSA(query: string, lat: number, lng: number, radiusMiles
         }
 
         const data = await response.json();
-        
-        // Transform SAMHSA data to match our format
+
         return (data.rows || []).map((facility: SAMHSAFacility, index: number) => ({
             id: `samhsa-${index}-${facility.name1}-${facility.zip}`.replace(/\s+/g, '-').toLowerCase(),
             organization_name: facility.name1,
@@ -112,258 +110,157 @@ async function searchSAMHSA(query: string, lat: number, lng: number, radiusMiles
             distance_miles: facility.miles,
             latitude: facility.latitude,
             longitude: facility.longitude,
-            services_raw: facility.services
+            services_raw: facility.services,
         }));
-    } catch (error) {
-        console.error('SAMHSA search error:', error);
+    } catch (err) {
+        console.error('SAMHSA search error:', err);
         return [];
     }
 }
 
-function getServiceTypes(services: Array<{ f1: string; f2: string; f3: string }>): string {
-    const setting = services.find(s => s.f2 === 'SET');
-    return setting?.f3 || '';
+// ============================================================================
+// Helpers
+// ============================================================================
+const TREATMENT_KEYWORDS = [
+    'treatment', 'mental health', 'substance', 'addiction', 'detox', 'rehab',
+    'therapy', 'counseling', 'mat', 'suboxone', 'methadone', 'recovery', 'crisis',
+];
+
+function shouldIncludeSAMHSA(source: string, category: string, query: string): boolean {
+    if (source === 'samhsa') return true;
+    if (['Health', 'Mental Health', 'Substance Use Treatment'].includes(category)) return true;
+    const q = query.toLowerCase();
+    if (TREATMENT_KEYWORDS.some(kw => q.includes(kw))) return true;
+    if (query === '' && category === 'all') return true;    // General browse includes SAMHSA
+    return false;
 }
 
-function getServiceDescription(services: Array<{ f1: string; f2: string; f3: string }>): string {
-    const typeOfCare = services.find(s => s.f2 === 'TC');
-    const setting = services.find(s => s.f2 === 'SET');
-    const parts = [typeOfCare?.f3, setting?.f3].filter(Boolean);
-    return parts.join('. ') || 'Treatment services available';
+/** Map raw DB rows into the shape the frontend expects (source: 'Local'). */
+function normalizeLocal(rows: any[]): any[] {
+    return rows.map(r => ({ ...r, source: 'Local' }));
 }
 
-function getQualifier(services: Array<{ f1: string; f2: string; f3: string }>, code: string): string | null {
-    const service = services.find(s => s.f2 === code);
-    return service?.f3 || null;
-}
-
-// Search local resources in Supabase
-async function searchLocalResources(query: string, category?: string, subcategory?: string, limit: number = 500): Promise<LocalResource[]> {
-    try {
-        let queryBuilder = supabase
-            .from('local_resources')
-            .select('*')
-            .eq('is_active', true)
-            .order('organization_name', { ascending: true });
-
-        // Category filter
-        if (category && category !== 'all') {
-            queryBuilder = queryBuilder.eq('category', category);
-        }
-
-        // Subcategory filter
-        if (subcategory && subcategory !== 'all') {
-            queryBuilder = queryBuilder.eq('subcategory', subcategory);
-        }
-
-        // Text search if query provided
-        if (query && query.trim()) {
-            // Use full-text search
-            queryBuilder = queryBuilder.or(
-                `organization_name.ilike.%${query}%,` +
-                `program_name.ilike.%${query}%,` +
-                `service_description.ilike.%${query}%,` +
-                `category.ilike.%${query}%,` +
-                `subcategory.ilike.%${query}%`
-            );
-        }
-
-        const { data, error } = await queryBuilder.limit(limit);
-
-        if (error) {
-            console.error('Local search error:', error);
-            return [];
-        }
-
-        return (data || []).map(r => ({ ...r, source: r.source || 'Local' }));
-    } catch (error) {
-        console.error('Local search error:', error);
-        return [];
-    }
-}
-
-// Get all categories
-async function getCategories() {
-    try {
-        const { data, error } = await supabase
-            .from('resource_categories')
-            .select('*')
-            .eq('is_active', true)
-            .order('display_order');
-
-        if (error) throw error;
-        return data || [];
-    } catch (error) {
-        console.error('Categories fetch error:', error);
-        return [];
-    }
-}
-
-// Get resources by category
-async function getResourcesByCategory(category: string) {
-    try {
-        const { data, error } = await supabase
-            .from('local_resources')
-            .select('*')
-            .eq('category', category)
-            .eq('is_active', true)
-            .order('organization_name');
-
-        if (error) throw error;
-        return data || [];
-    } catch (error) {
-        console.error('Category resources error:', error);
-        return [];
-    }
-}
-
+// ============================================================================
+// GET — search, categories, or by-category fetch
+// ============================================================================
 export async function GET(request: NextRequest) {
-    const searchParams = request.nextUrl.searchParams;
-    const query = searchParams.get('q') || '';
-    const category = searchParams.get('category') || 'all';
-    const subcategory = searchParams.get('subcategory') || 'all';
-    const source = searchParams.get('source') || 'all'; // 'local', 'samhsa', 'all'
-    const action = searchParams.get('action') || 'search'; // 'search', 'categories', 'by-category', 'subcategories'
-    const lat = parseFloat(searchParams.get('lat') || String(LOUISVILLE_LAT));
-    const lng = parseFloat(searchParams.get('lng') || String(LOUISVILLE_LNG));
-    const radius = parseInt(searchParams.get('radius') || '50');
+    try {
+        await requireAuth();
+    } catch {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const sp = request.nextUrl.searchParams;
+    const query       = sp.get('q')           || '';
+    const category    = sp.get('category')    || 'all';
+    const subcategory = sp.get('subcategory') || undefined;
+    const zip         = sp.get('zip')         || undefined;
+    const source      = sp.get('source')      || 'all';
+    const action      = sp.get('action')      || 'search';
+    const lat         = parseFloat(sp.get('lat')    || String(LOUISVILLE_LAT));
+    const lng         = parseFloat(sp.get('lng')    || String(LOUISVILLE_LNG));
+    const radius      = parseInt(  sp.get('radius') || '50');
 
     try {
-        // Get categories
+        // Categories listing
         if (action === 'categories') {
             const categories = await getCategories();
             return NextResponse.json({ categories });
         }
 
-        // Get subcategories for a specific category
-        if (action === 'subcategories' && category !== 'all') {
-            const { data, error } = await supabase
-                .from('local_resources')
-                .select('subcategory')
-                .eq('category', category)
-                .eq('is_active', true)
-                .not('subcategory', 'is', null);
-            
-            if (error) throw error;
-            
-            // Count resources per subcategory
-            const subcategoryCounts: Record<string, number> = {};
-            (data || []).forEach((r: { subcategory: string }) => {
-                const sub = r.subcategory;
-                if (sub) {
-                    subcategoryCounts[sub] = (subcategoryCounts[sub] || 0) + 1;
-                }
-            });
-            
-            // Convert to array and sort by count
-            const subcategories = Object.entries(subcategoryCounts)
-                .map(([name, count]) => ({ name, count }))
-                .sort((a, b) => b.count - a.count);
-            
-            return NextResponse.json({ subcategories, category });
-        }
-
-        // Get resources by specific category
+        // All resources in a single category
         if (action === 'by-category' && category !== 'all') {
-            const resources = await getResourcesByCategory(category);
-            return NextResponse.json({ 
-                resources,
-                total: resources.length,
-                category 
+            const rows = await searchResources({ category, limit: 1000 });
+            return NextResponse.json({
+                resources: normalizeLocal(rows as any[]),
+                total: rows.length,
+                category,
             });
         }
 
-        // Combined search
-        let localResults: any[] = [];
-        let samhsaResults: any[] = [];
+        // Default: combined search
+        let local: any[] = [];
+        let samhsa: any[] = [];
 
-        // Search local resources
         if (source === 'all' || source === 'local') {
-            localResults = await searchLocalResources(query, category, subcategory);
+            const rows = await searchResources({ query, category, subcategory, zip, limit: 1000 });
+            local = normalizeLocal(rows as any[]);
         }
 
-        // Search SAMHSA for treatment-related queries
-        if (source === 'all' || source === 'samhsa') {
-            const treatmentKeywords = ['treatment', 'mental health', 'substance', 'addiction', 'detox', 'rehab', 'therapy', 'counseling', 'mat', 'suboxone', 'methadone', 'recovery', 'crisis'];
-            const shouldSearchSAMHSA = 
-                source === 'samhsa' || 
-                category === 'Health' ||
-                category === 'Mental Health' ||
-                category === 'Substance Use Treatment' ||
-                treatmentKeywords.some(kw => query.toLowerCase().includes(kw)) ||
-                (query === '' && category === 'all'); // Include SAMHSA in general browse
-
-            if (shouldSearchSAMHSA) {
-                samhsaResults = await searchSAMHSA(query, lat, lng, radius);
-            }
+        if ((source === 'all' || source === 'samhsa') && shouldIncludeSAMHSA(source, category, query)) {
+            samhsa = await searchSAMHSA(query, lat, lng, radius);
         }
 
-        // Combine and deduplicate results
-        const allResults = [...localResults, ...samhsaResults];
-        
-        // Sort: local first, then by name
-        allResults.sort((a, b) => {
+        // Local first, then alphabetical by org name
+        const all = [...local, ...samhsa].sort((a, b) => {
             if (a.source === 'Local' && b.source !== 'Local') return -1;
             if (a.source !== 'Local' && b.source === 'Local') return 1;
             return (a.organization_name || '').localeCompare(b.organization_name || '');
         });
 
         return NextResponse.json({
-            resources: allResults,
-            total: allResults.length,
-            localCount: localResults.length,
-            samhsaCount: samhsaResults.length,
+            resources: all,
+            total: all.length,
+            localCount: local.length,
+            samhsaCount: samhsa.length,
             query,
-            category
+            category,
         });
-
-    } catch (error) {
-        console.error('Resource search error:', error);
-        return NextResponse.json(
-            { error: 'Failed to search resources' },
-            { status: 500 }
-        );
+    } catch (err) {
+        console.error('Resource search error:', err);
+        return NextResponse.json({ error: 'Failed to search resources' }, { status: 500 });
     }
 }
 
+// ============================================================================
+// POST — same behaviour as GET but accepts a richer body (filters object, etc.)
+// ============================================================================
 export async function POST(request: NextRequest) {
-    // For more complex searches with body params
+    try {
+        await requireAuth();
+    } catch {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     try {
         const body = await request.json();
-        const { query, category, filters, lat, lng, radius } = body;
+        const {
+            query = '',
+            category = 'all',
+            subcategory,
+            filters = {},
+            lat = LOUISVILLE_LAT,
+            lng = LOUISVILLE_LNG,
+            radius = 50,
+            source = 'all',
+        } = body;
 
-        const localResults = await searchLocalResources(
-            query || '', 
-            category || 'all'
-        );
-
-        let samhsaResults: any[] = [];
-        if (!category || category === 'all' || category === 'Health') {
-            samhsaResults = await searchSAMHSA(
-                query || '',
-                lat || LOUISVILLE_LAT,
-                lng || LOUISVILLE_LNG,
-                radius || 50
-            );
+        let local: any[] = [];
+        if (source === 'all' || source === 'local') {
+            const rows = await searchResources({
+                query,
+                category,
+                subcategory,
+                zip: filters.zipCode,
+                limit: filters.limit ?? 1000,
+            });
+            local = normalizeLocal(rows as any[]);
         }
 
-        // Apply additional filters if provided
-        let results = [...localResults, ...samhsaResults];
-
-        if (filters?.zipCode) {
-            results = results.filter(r => r.zip?.startsWith(filters.zipCode));
+        let samhsa: any[] = [];
+        if ((source === 'all' || source === 'samhsa') && shouldIncludeSAMHSA(source, category, query)) {
+            samhsa = await searchSAMHSA(query, lat, lng, radius);
         }
 
+        const all = [...local, ...samhsa];
         return NextResponse.json({
-            resources: results,
-            total: results.length
+            resources: all,
+            total: all.length,
+            localCount: local.length,
+            samhsaCount: samhsa.length,
         });
-
-    } catch (error) {
-        console.error('Resource search error:', error);
-        return NextResponse.json(
-            { error: 'Failed to search resources' },
-            { status: 500 }
-        );
+    } catch (err) {
+        console.error('Resource search error:', err);
+        return NextResponse.json({ error: 'Failed to search resources' }, { status: 500 });
     }
 }

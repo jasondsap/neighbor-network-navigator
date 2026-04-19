@@ -1,9 +1,19 @@
+/**
+ * app/api/resource-assistant/route.ts
+ *
+ * AI-powered resource guidance for navigators. Calls OpenAI with the user's
+ * question + matched resources and returns a structured JSON response the
+ * frontend can render (summary, recommended resources, next steps, script,
+ * barriers, encouragement).
+ *
+ * Gated behind NextAuth.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { requireAuth } from '@/lib/auth';
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 interface MatchedResource {
     id: string;
@@ -21,13 +31,20 @@ interface MatchedResource {
 
 export async function POST(request: NextRequest) {
     try {
+        await requireAuth();
+    } catch {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    try {
         const body = await request.json();
         const {
             userNeed,
             location = 'Louisville, KY',
             participantContext = '',
+            goalContext = '',
             category = '',
-            matchedResources = []
+            matchedResources = [],
         } = body;
 
         if (!userNeed) {
@@ -37,7 +54,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Format matched resources for the prompt
+        // Format matched resources for the model prompt
         const formattedResources: MatchedResource[] = matchedResources.map((r: any) => ({
             id: r.id,
             name: r.organization_name || r.name1 || r.name,
@@ -47,142 +64,134 @@ export async function POST(request: NextRequest) {
             website: r.website,
             email: r.email,
             notes: r.notes || r.tips_tricks,
-            eligibility: [r.qualifier_income, r.qualifier_age, r.qualifier_cohort, r.qualifier_misc]
-                .filter(Boolean).join('; ') || r.qualifier_geography,
+            eligibility:
+                [r.qualifier_income, r.qualifier_age, r.qualifier_cohort, r.qualifier_misc]
+                    .filter(Boolean)
+                    .join('; ') || r.qualifier_geography,
             hours: r.hours,
-            services: r.service_description || r.subcategory
+            services: r.service_description || r.subcategory,
         }));
 
-        const prompt = `You are the Resource Navigator Assistant for Louisville Neighbor Network, a community organization in Louisville, Kentucky that helps neighbors connect to resources they need.
+        const prompt = `You are the Resource Assistant inside the SLCM Neighbor Network Navigator, a digital workspace that supports community navigators working with neighbors in need.
 
 Your job is to:
-- Help community members and navigators quickly understand and use available resources.
-- Explain resources in simple, friendly, neighbor-to-neighbor language.
-- Suggest realistic next steps and simple scripts they can use when reaching out.
-- Stay strength-based, compassionate, and non-judgmental.
-- Embody the Neighbor Network values: reconnect, rethink, rebuild.
+- Help navigators quickly understand and use community resources.
+- Explain resources in simple, friendly, non-clinical language.
+- Suggest realistic next steps and self-advocacy scripts they can use with neighbors.
+- Stay strength-based, trauma-informed, and non-judgmental.
 
-CONTEXT:
+CONTEXT YOU RECEIVE:
 - LOCATION: ${location}
 - NEIGHBOR CONTEXT: ${participantContext || 'Not provided'}
-- USER QUESTION OR NEED: "${userNeed}"
+- GOAL CONTEXT: ${goalContext || 'Not provided'}
+- NAVIGATOR'S QUESTION: "${userNeed}"
 - RESOURCE CATEGORY (if specified): ${category || 'Not specified'}
-- AVAILABLE RESOURCES (matched from the database):
-${formattedResources.length > 0 
-    ? JSON.stringify(formattedResources, null, 2) 
+- AVAILABLE RESOURCES (if any were matched from the database):
+${formattedResources.length > 0
+    ? JSON.stringify(formattedResources, null, 2)
     : '[] (No specific resources were passed in. You may only speak in general terms and suggest common TYPES of resources, not specific organizations by name.)'}
 
-IMPORTANT RULES:
+VERY IMPORTANT RULES:
 1. You **do not have live internet access**. You **must not invent** specific real-world organization names, phone numbers, or addresses if they are not included in AVAILABLE RESOURCES.
 2. When AVAILABLE RESOURCES is an empty list:
-   - Speak in general terms about *types* of resources (e.g., "local housing authority", "community food pantry", "legal aid office").
-   - Give practical guidance and steps for how to search locally (e.g., using 211, visiting the Neighbor Network website).
+   - Speak in general terms about *types* of resources (e.g., "local housing authority", "legal aid office", "community mental health center").
+   - Give practical guidance, steps, and scripts for how the navigator can search locally (e.g., using 211, county websites, state resource lines).
 3. When AVAILABLE RESOURCES is a non-empty list:
-   - Use those as the options they can realistically explore.
-   - Help prioritize which to try first based on their situation.
-   - Do NOT hallucinate extra details not provided.
-4. Write in warm, neighborly language. You are a helpful neighbor, not a bureaucrat.
-5. Avoid giving medical, legal, or financial advice. Help connect to appropriate resources instead.
+   - Assume those are the options they can realistically use.
+   - Help the user compare them, prioritize them, and decide which to try first.
+   - Do NOT hallucinate extra details that weren't provided (like hours, eligibility) unless the information is explicitly included.
+4. Always write in warm, compassionate, non-clinical language.
+5. Avoid giving medical, legal, or financial advice. You can help them connect to appropriate resources instead.
 
 TONE GUIDELINES:
-- Warm and welcoming ("Welcome, neighbor!")
-- Strength-based ("You're taking a great step by...")
-- Non-judgmental and compassionate
-- Clear and practical
-- Hopeful but realistic
+- Strength-based
+- Non-judgmental
+- Clear and concrete
+- Practical, not vague
+- Trauma-informed
 
 YOUR TASK:
-Produce a **JSON** response that:
-- Summarizes the situation and need
-- Highlights 3–5 recommended resources or resource TYPES
-- Offers concrete next steps
-- Provides at least one simple script for reaching out
-- Identifies potential barriers and ideas to work around them
-- Ends with encouragement
+Produce a JSON response that:
+- Summarizes the situation and need.
+- Highlights 3-5 recommended resources or resource TYPES.
+- Offers concrete next steps.
+- Provides at least one simple self-advocacy script.
+- Identifies potential barriers and simple ideas to work around them.
 
-RETURN FORMAT (valid JSON only, no markdown or extra text):
+RETURN FORMAT:
+Return ONLY valid JSON with this exact structure and NO extra commentary or markdown:
 
 {
-  "summary": "2–4 sentence, plain-language summary of what kind of help is needed.",
+  "summary": "2-4 sentence, plain-language summary.",
   "recommendedResources": [
     {
-      "name": "If from AVAILABLE RESOURCES: use exact name. Otherwise: use a TYPE like 'Local Food Pantry' or 'Housing Assistance Office'.",
-      "type": "Short label like 'Housing', 'Food', 'Legal', etc.",
-      "whyHelpful": "1–2 sentences explaining why this resource fits this situation.",
-      "howToContact": "If contact info available, summarize it. Otherwise, give guidance like 'Call 211 and ask for...'",
-      "eligibilityNotes": "If known, mention key eligibility points. Otherwise, say 'Ask about eligibility requirements when you call.'"
+      "name": "Real name from AVAILABLE RESOURCES, or a TYPE like 'Local Housing Authority'.",
+      "type": "Short label like 'Housing', 'Food', etc.",
+      "whyHelpful": "1-2 sentences.",
+      "howToContact": "Brief contact guidance.",
+      "eligibilityNotes": "Key eligibility points if known."
     }
   ],
   "nextSteps": [
-    "Concrete next step 1",
-    "Concrete next step 2",
-    "Concrete next step 3"
+    "Concrete next step 1.",
+    "Concrete next step 2.",
+    "Concrete next step 3."
   ],
-  "selfAdvocacyScript": "A short, friendly script to use when calling or visiting. Use first person (e.g., 'Hi, my name is ____. I'm looking for help with...').",
+  "selfAdvocacyScript": "Short friendly script starting with 'Hi, my name is ____...'",
   "barriersAndIdeas": [
-    {
-      "barrier": "Likely barrier (e.g., 'Transportation', 'Waitlists', 'Documentation required').",
-      "ideaToWorkAround": "1–2 sentence idea to work around the barrier."
-    }
+    { "barrier": "Likely barrier.", "ideaToWorkAround": "Idea." }
   ],
-  "encouragement": "1–2 sentences of warm, neighborly encouragement. Remind them the Neighbor Network is here to help."
+  "encouragement": "1-2 sentences of strength-based encouragement."
 }
 
-Generate the JSON now. Do NOT include backticks, markdown, or any text outside of the JSON object.`;
+Generate the JSON now. No backticks, no markdown, no text outside of the JSON object.`;
 
         const response = await openai.chat.completions.create({
             model: 'gpt-4o',
             messages: [
                 {
                     role: 'system',
-                    content: 'You are the Louisville Neighbor Network Resource Navigator assistant. You always respond with valid JSON only, no markdown or additional text. You embody neighborly warmth and practical helpfulness.'
+                    content:
+                        'You are an expert Resource Navigator assistant. You always respond with valid JSON only, no markdown or additional text.',
                 },
-                {
-                    role: 'user',
-                    content: prompt
-                }
+                { role: 'user', content: prompt },
             ],
             max_tokens: 2500,
             temperature: 0.7,
         });
 
         const content = response.choices[0]?.message?.content || '';
-        
-        // Clean and parse JSON
-        let cleanContent = content.trim();
-        if (cleanContent.startsWith('```json')) {
-            cleanContent = cleanContent.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-        } else if (cleanContent.startsWith('```')) {
-            cleanContent = cleanContent.replace(/^```\n?/, '').replace(/\n?```$/, '');
-        }
+
+        // Strip markdown fences if the model returned them despite instructions
+        let clean = content.trim();
+        if (clean.startsWith('```json')) clean = clean.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+        else if (clean.startsWith('```')) clean = clean.replace(/^```\n?/, '').replace(/\n?```$/, '');
 
         try {
-            const parsedResponse = JSON.parse(cleanContent);
+            const parsed = JSON.parse(clean);
             return NextResponse.json({
                 success: true,
-                response: parsedResponse,
-                resourcesProvided: formattedResources.length
+                response: parsed,
+                resourcesProvided: formattedResources.length,
             });
         } catch (parseError) {
-            console.error('JSON parse error:', parseError);
-            // Return the raw content if parsing fails
+            console.error('Resource Assistant JSON parse error:', parseError);
             return NextResponse.json({
                 success: true,
                 response: {
-                    summary: cleanContent,
+                    summary: clean,
                     recommendedResources: [],
                     nextSteps: ['Please try asking your question again.'],
                     selfAdvocacyScript: '',
                     barriersAndIdeas: [],
-                    encouragement: 'The Neighbor Network is here to help. Don\'t give up!'
+                    encouragement: 'Thank you for supporting your neighbors!',
                 },
-                rawContent: cleanContent,
-                parseError: true
+                rawContent: clean,
+                parseError: true,
             });
         }
-
-    } catch (error) {
-        console.error('Resource Assistant error:', error);
+    } catch (err) {
+        console.error('Resource Assistant error:', err);
         return NextResponse.json(
             { error: 'Failed to get resource assistance' },
             { status: 500 }

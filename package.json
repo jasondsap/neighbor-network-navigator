@@ -8,15 +8,25 @@
     "start": "next start",
     "lint": "eslint"
   },
+  "overrides": {
+    "next-auth": {
+      "next": "$next",
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
+  },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "@react-google-maps/api": "^2.20.8",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.90.1",
     "lucide-react": "^0.562.0",
-    "next": "16.1.1",
-    "openai": "^6.16.0",
+    "next": "^15.5.0",
+    "next-auth": "^4.24.11",
+    "openai": "^6.34.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -24,8 +34,9 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.1.1",
-    "tailwindcss": "^4",
+    "eslint-config-next": "^15.5.0",
+    "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
