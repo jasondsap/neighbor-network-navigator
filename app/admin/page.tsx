@@ -3,16 +3,14 @@
 /**
  * app/admin/page.tsx
  *
- * Landing page for /admin. Four panels:
- *   1. Resource count total + breakdown (top 5 + "see all")
- *   2. Pending flags (stubbed at 0 until Phase C)
- *   3. Recent resource edits (last 5)
- *   4. Data freshness (stale count)
+ * Update log:
+ *  - Phase D: added "Pending Access Reports" as a fourth summary tile.
+ *             Grid changes from 3 → 4 columns at lg+.
  */
 
 import { useEffect, useState } from 'react';
 import {
-    Package, Flag, History, AlertTriangle, Loader2, ChevronRight
+    Package, Flag, History, AlertTriangle, Loader2, ChevronRight,
 } from 'lucide-react';
 
 interface DashboardData {
@@ -27,6 +25,7 @@ interface DashboardData {
     }>;
     staleCount: number;
     pendingFlags: number;
+    pendingAccessReports: number;
 }
 
 export default function AdminDashboard() {
@@ -80,8 +79,8 @@ export default function AdminDashboard() {
                 </p>
             </div>
 
-            {/* Top summary tiles */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {/* Summary tiles — 4 across at lg+, 2 across at md, 1 below */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <SummaryTile
                     icon={Package}
                     label="Active Resources"
@@ -97,9 +96,16 @@ export default function AdminDashboard() {
                 />
                 <SummaryTile
                     icon={AlertTriangle}
+                    label="Access Reports"
+                    value={data.pendingAccessReports.toLocaleString()}
+                    color="#C0392B"
+                    sublabel={data.pendingAccessReports === 0 ? 'All caught up' : 'Pending triage'}
+                />
+                <SummaryTile
+                    icon={AlertTriangle}
                     label="Possibly Stale"
                     value={data.staleCount.toLocaleString()}
-                    color="#C0392B"
+                    color="#6B7280"
                     sublabel="Not updated in 6+ months"
                 />
             </div>
@@ -140,7 +146,7 @@ export default function AdminDashboard() {
                     </div>
                     {data.recentEdits.length === 0 ? (
                         <p className="text-sm text-gray-500 italic">
-                            No edits yet. Resource edits will appear here once Phase B ships.
+                            No recent edits yet.
                         </p>
                     ) : (
                         <ul className="space-y-3">
@@ -155,7 +161,7 @@ export default function AdminDashboard() {
                                         </p>
                                         <p className="text-xs text-gray-500">
                                             {edit.category}
-                                            {edit.editor ? ` • ${edit.editor}` : ''}
+                                            {edit.editor ? ` \u2022 ${edit.editor}` : ''}
                                         </p>
                                     </div>
                                     <span className="text-xs text-gray-400 whitespace-nowrap">
@@ -168,15 +174,15 @@ export default function AdminDashboard() {
                 </section>
             </div>
 
-            {/* Phase B preview block */}
+            {/* What's next block */}
             <div className="mt-8 p-5 bg-gradient-to-br from-[#2E4A8E]/5 to-[#E8B84A]/5 border border-[#2E4A8E]/10 rounded-xl">
                 <div className="flex items-start gap-3">
                     <ChevronRight className="w-5 h-5 text-[#2E4A8E] flex-shrink-0 mt-0.5" />
                     <div>
                         <h4 className="font-semibold text-gray-900">Coming soon</h4>
                         <p className="text-sm text-gray-600 mt-1">
-                            Phase B adds full resource editing — search, edit, soft-delete, and version
-                            history. Phase C adds user-submitted flag triage. Phase D adds Excel export.
+                            Phase E adds Excel export so SLCM can download a snapshot of the
+                            resource database as a multi-tab workbook for backups or external sharing.
                         </p>
                     </div>
                 </div>
@@ -188,7 +194,6 @@ export default function AdminDashboard() {
 // ============================================================================
 // Subcomponents
 // ============================================================================
-
 function SummaryTile({
     icon: Icon,
     label,
@@ -196,7 +201,7 @@ function SummaryTile({
     color,
     sublabel,
 }: {
-        icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+    icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
     label: string;
     value: string;
     color: string;

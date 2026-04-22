@@ -4,7 +4,8 @@
  * app/admin/sidebar.tsx
  *
  * Update log:
- *  - Phase C: Flags item enabled, shows pending count badge when non-zero.
+ *  - Phase D: Access Reports added, with its own pending badge (gold).
+ *             Badge counts are fetched in parallel from both summary endpoints.
  */
 
 import { useEffect, useState } from 'react';
@@ -14,6 +15,7 @@ import {
     LayoutDashboard,
     Package,
     Flag,
+    AlertTriangle,
     Download,
     Users,
 } from 'lucide-react';
@@ -21,32 +23,43 @@ import {
 interface NavItem {
     href: string;
     label: string;
-    icon: React.ComponentType<{ className?: string }>;
+    icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
     disabled?: boolean;
     badge?: string;
+    pendingKey?: 'flags' | 'access';
 }
 
 const NAV: NavItem[] = [
-    { href: '/admin',           label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/admin/resources', label: 'Resources', icon: Package },
-    { href: '/admin/flags',     label: 'Flags',     icon: Flag },
-    { href: '/admin/users',     label: 'Users',     icon: Users,    disabled: true, badge: 'Later'   },
-    { href: '/admin/export',    label: 'Export',    icon: Download, disabled: true, badge: 'Phase D' },
+    { href: '/admin',                 label: 'Dashboard',       icon: LayoutDashboard },
+    { href: '/admin/resources',       label: 'Resources',       icon: Package },
+    { href: '/admin/flags',           label: 'Flags',           icon: Flag,           pendingKey: 'flags' },
+    { href: '/admin/access-reports',  label: 'Access Reports',  icon: AlertTriangle,  pendingKey: 'access' },
+    { href: '/admin/users',           label: 'Users',           icon: Users,          disabled: true, badge: 'Later' },
+    { href: '/admin/export',          label: 'Export',          icon: Download,       disabled: true, badge: 'Phase E' },
 ];
 
 export function AdminSidebar() {
     const pathname = usePathname();
-    const [pending, setPending] = useState<number | null>(null);
+    const [pending, setPending] = useState<{ flags: number | null; access: number | null }>({
+        flags: null, access: null,
+    });
 
-    // Fetch pending flag count once on mount — cheap, shows a live badge
+    // Fetch pending counts in parallel on mount + every nav change
     useEffect(() => {
         let cancelled = false;
-        fetch('/api/admin/flags/summary')
-            .then(r => r.ok ? r.json() : null)
-            .then(data => { if (!cancelled && data) setPending(data.pending); })
-            .catch(() => { /* silent */ });
+        Promise.allSettled([
+            fetch('/api/admin/flags/summary').then(r => r.ok ? r.json() : null),
+            fetch('/api/admin/access-reports/summary').then(r => r.ok ? r.json() : null),
+        ]).then(([flagsRes, accessRes]) => {
+            if (cancelled) return;
+            const flags  = flagsRes.status === 'fulfilled' && flagsRes.value
+                ? flagsRes.value.pending : null;
+            const access = accessRes.status === 'fulfilled' && accessRes.value
+                ? accessRes.value.pending : null;
+            setPending({ flags, access });
+        });
         return () => { cancelled = true; };
-    }, [pathname]);  // re-fetch when navigating between admin pages
+    }, [pathname]);
 
     return (
         <aside className="w-56 flex-shrink-0">
@@ -76,11 +89,10 @@ export function AdminSidebar() {
                         );
                     }
 
-                    // Live pending count badge for Flags
-                    const showPendingBadge =
-                        item.href === '/admin/flags' &&
-                        typeof pending === 'number' &&
-                        pending > 0;
+                    const pendingCount = item.pendingKey
+                        ? pending[item.pendingKey]
+                        : null;
+                    const showPending = typeof pendingCount === 'number' && pendingCount > 0;
 
                     return (
                         <Link
@@ -94,13 +106,13 @@ export function AdminSidebar() {
                         >
                             <Icon className="w-4 h-4" />
                             <span className="flex-1">{item.label}</span>
-                            {showPendingBadge && (
+                            {showPending && (
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                                     isActive
                                         ? 'bg-white text-[#2E4A8E]'
                                         : 'bg-[#E8B84A] text-[#1E3A6E]'
                                 }`}>
-                                    {pending}
+                                    {pendingCount}
                                 </span>
                             )}
                         </Link>

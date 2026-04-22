@@ -2,7 +2,8 @@
  * app/api/admin/dashboard/route.ts
  *
  * Update log:
- *  - Phase C: pendingFlags now reflects real count from resource_flags.
+ *  - Phase C: real pendingFlags count
+ *  - Phase D: adds pendingAccessReports count
  */
 
 import { NextResponse } from 'next/server';
@@ -20,7 +21,7 @@ export async function GET() {
     }
 
     try {
-        const [counts, totalRow, recentEdits, staleRow, pendingRow] = await Promise.all([
+        const [counts, totalRow, recentEdits, staleRow, pendingRow, accessPendingRow] = await Promise.all([
             sql`
                 SELECT category, COUNT(*)::INT AS count
                 FROM resources
@@ -53,6 +54,11 @@ export async function GET() {
                 FROM resource_flags
                 WHERE status IN ('open', 'in_progress')
             `,
+            sql`
+                SELECT COUNT(*)::INT AS pending
+                FROM access_reports
+                WHERE status IN ('open', 'reviewed')
+            `,
         ]);
 
         return NextResponse.json({
@@ -61,6 +67,7 @@ export async function GET() {
             recentEdits,
             staleCount: (staleRow as any[])[0]?.stale ?? 0,
             pendingFlags: (pendingRow as any[])[0]?.pending ?? 0,
+            pendingAccessReports: (accessPendingRow as any[])[0]?.pending ?? 0,
         });
     } catch (err) {
         console.error('Admin dashboard error:', err);

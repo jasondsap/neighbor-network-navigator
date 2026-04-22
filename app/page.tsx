@@ -14,6 +14,7 @@ import { useSession, signOut } from 'next-auth/react';
 import dynamic from 'next/dynamic';
 import BusDirectionsModal from './components/BusDirectionsModal';
 import { FlagResourceButton } from './components/FlagResourceModal';
+import { UnableToAccessButton } from './components/UnableToAccessModal';
 import { AdminHeaderLink } from './components/AdminHeaderLink';
 
 // Dynamically import the map component to avoid SSR issues
@@ -1071,6 +1072,10 @@ export default function ResourceNavigator() {
                                 </button>
                             )}
                             <div className="pt-4 mt-4 border-t border-gray-100 flex justify-end">
+                                <UnableToAccessButton
+                                    resourceId={selectedResource.id}
+                                    resourceName={selectedResource.organization_name}
+                                />
                                 <FlagResourceButton
                                     resourceId={selectedResource.id}
                                     resourceName={selectedResource.organization_name}
