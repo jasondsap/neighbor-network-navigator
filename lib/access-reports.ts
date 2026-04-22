@@ -30,7 +30,7 @@ export const BARRIER_OPTIONS = [
 ] as const;
 
 export type BarrierValue = typeof BARRIER_OPTIONS[number]['value'];
-const BARRIER_SET = new Set(BARRIER_OPTIONS.map(b => b.value));
+const BARRIER_SET = new Set<string>(BARRIER_OPTIONS.map(b => b.value));
 
 export function barrierLabel(value: string): string {
     return BARRIER_OPTIONS.find(b => b.value === value)?.label ?? value;
@@ -49,7 +49,7 @@ export const ATTEMPT_METHODS = [
 ] as const;
 
 export type AttemptMethodValue = typeof ATTEMPT_METHODS[number]['value'];
-const METHOD_SET = new Set(ATTEMPT_METHODS.map(m => m.value));
+const METHOD_SET = new Set<string>(ATTEMPT_METHODS.map(m => m.value));
 
 export function attemptMethodLabel(value: string): string {
     return ATTEMPT_METHODS.find(m => m.value === value)?.label ?? value;
@@ -65,7 +65,7 @@ export const ATTEMPT_COUNT_OPTIONS = [
     { value: 'ongoing', label: 'Ongoing attempts' },
 ] as const;
 
-const ATTEMPT_COUNT_SET = new Set(ATTEMPT_COUNT_OPTIONS.map(o => o.value));
+const ATTEMPT_COUNT_SET = new Set<string>(ATTEMPT_COUNT_OPTIONS.map(o => o.value));
 
 export function attemptCountLabel(value: string): string {
     return ATTEMPT_COUNT_OPTIONS.find(o => o.value === value)?.label ?? value;
@@ -81,7 +81,7 @@ export const FINAL_OUTCOMES = [
     { value: 'unknown',      label: 'Outcome unknown' },
 ] as const;
 
-const OUTCOME_SET = new Set(FINAL_OUTCOMES.map(o => o.value));
+const OUTCOME_SET = new Set<string>(FINAL_OUTCOMES.map(o => o.value));
 
 export function finalOutcomeLabel(value: string): string {
     return FINAL_OUTCOMES.find(o => o.value === value)?.label ?? value;
@@ -104,7 +104,7 @@ export const IMPROVEMENT_OPTIONS = [
 ] as const;
 
 export type ImprovementValue = typeof IMPROVEMENT_OPTIONS[number]['value'];
-const IMPROVEMENT_SET = new Set(IMPROVEMENT_OPTIONS.map(i => i.value));
+const IMPROVEMENT_SET = new Set<string>(IMPROVEMENT_OPTIONS.map(i => i.value));
 
 export function improvementLabel(value: string): string {
     return IMPROVEMENT_OPTIONS.find(i => i.value === value)?.label ?? value;
@@ -136,7 +136,7 @@ export const ACCESS_REPORT_STATUSES = [
 ] as const;
 
 export type AccessReportStatus = typeof ACCESS_REPORT_STATUSES[number]['value'];
-const STATUS_SET = new Set(ACCESS_REPORT_STATUSES.map(s => s.value));
+const STATUS_SET = new Set<string>(ACCESS_REPORT_STATUSES.map(s => s.value));
 
 export function isValidAccessStatus(v: unknown): v is AccessReportStatus {
     return typeof v === 'string' && STATUS_SET.has(v as AccessReportStatus);
