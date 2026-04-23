@@ -521,7 +521,7 @@ export function UnableToAccessButton({
         <>
             <button
                 onClick={() => setOpen(true)}
-                className={`inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-[#C0392B] transition-colors ${className}`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-[#C0392B]/30 bg-[#C0392B]/5 text-[#C0392B] hover:bg-[#C0392B]/10 hover:border-[#C0392B]/60 transition-all ${className}`}
                 title="Report that you couldn't access this resource"
             >
                 <AlertTriangle className="w-4 h-4" />

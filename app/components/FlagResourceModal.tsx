@@ -281,7 +281,7 @@ export function FlagResourceButton({
         <>
             <button
                 onClick={() => setOpen(true)}
-                className={`inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-[#b5851a] transition-colors ${className}`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100 hover:border-gray-400 hover:text-[#2E4A8E] transition-all ${className}`}
                 title="Report an issue with this resource"
             >
                 <Flag className="w-4 h-4" />

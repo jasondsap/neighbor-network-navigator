@@ -1071,7 +1071,7 @@ export default function ResourceNavigator() {
                                     Get TARC Bus Directions
                                 </button>
                             )}
-                            <div className="pt-4 mt-4 border-t border-gray-100 flex justify-end">
+                            <div className="pt-4 mt-4 border-t border-gray-100 flex justify-end items-center gap-3">
                                 <UnableToAccessButton
                                     resourceId={selectedResource.id}
                                     resourceName={selectedResource.organization_name}
