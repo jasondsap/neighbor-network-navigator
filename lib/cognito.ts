@@ -18,12 +18,13 @@
  * MUST come from the issuer, not a generic AWS_REGION.
  *
  * Credentials: this app is deployed on Vercel, which has NO attached AWS IAM
- * role, so the SDK default provider chain finds nothing. APP_AWS_ACCESS_KEY_ID /
- * APP_AWS_SECRET_ACCESS_KEY MUST be set (Vercel env + local) — they belong to an
- * IAM user holding cognito-idp:AdminCreateUser, AdminGetUser, and AdminDisableUser
- * on this user pool. The APP_AWS_ prefix is deliberate: Vercel/Lambda reserve the
- * bare AWS_ prefix. If the keys are absent, getClient() falls back to undefined
- * creds and every call fails with "Missing credentials".
+ * role, so the SDK default provider chain finds nothing. COGNITO_ADMIN_ACCESS_KEY_ID
+ * / COGNITO_ADMIN_SECRET_ACCESS_KEY MUST be set (Vercel env + local) — they belong
+ * to an IAM user holding cognito-idp:AdminCreateUser, AdminGetUser, and
+ * AdminDisableUser on this user pool. (APP_AWS_* names are accepted as a fallback.)
+ * A non-AWS_ prefix is deliberate: Vercel/Lambda reserve the bare AWS_ prefix. If
+ * the keys are absent, getClient() falls back to undefined creds and every call
+ * fails with "Missing credentials".
  */
 
 import {
@@ -48,8 +49,9 @@ function parseIssuer(): { region: string; userPoolId: string } | null {
 let _client: CognitoIdentityProviderClient | null = null;
 function getClient(region: string): CognitoIdentityProviderClient {
     if (_client) return _client;
-    const accessKeyId = process.env.APP_AWS_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.APP_AWS_SECRET_ACCESS_KEY;
+    // Prefer the COGNITO_ADMIN_* names (set in Vercel); fall back to APP_AWS_* .
+    const accessKeyId = process.env.COGNITO_ADMIN_ACCESS_KEY_ID || process.env.APP_AWS_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.COGNITO_ADMIN_SECRET_ACCESS_KEY || process.env.APP_AWS_SECRET_ACCESS_KEY;
     _client = new CognitoIdentityProviderClient({
         region,
         credentials: accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : undefined,
