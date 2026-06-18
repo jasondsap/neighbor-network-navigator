@@ -79,7 +79,7 @@ The admin Users panel (`app/admin/users/`, `app/api/admin/users/`) creates app u
 
 **Gotcha — create order:** `users.cognito_sub` is `NOT NULL + UNIQUE`, so creation provisions Cognito **first**, then inserts the DB row with the returned `sub`. If provisioning fails (or returns no `sub`), no row is written. This is the opposite of DDOR's nullable-`cognito_sub`/best-effort flow. Removal hard-deletes the row (there is no `is_active` on users) and best-effort *disables* the Cognito login. Admins can't demote or delete their own account.
 
-Credentials use `APP_AWS_ACCESS_KEY_ID` / `APP_AWS_SECRET_ACCESS_KEY` locally; on Amplify the SSR compute IAM role must hold `cognito-idp:AdminCreateUser`, `AdminGetUser`, and `AdminDisableUser` on the pool or provisioning fails in prod.
+**Deployment is Vercel** (not Amplify) — there's no attached AWS IAM role, so the SDK default provider chain finds no credentials. `APP_AWS_ACCESS_KEY_ID` / `APP_AWS_SECRET_ACCESS_KEY` must be set in Vercel env (and locally), belonging to an IAM **user** with `cognito-idp:AdminCreateUser`, `AdminGetUser`, and `AdminDisableUser` on the pool. The `APP_AWS_` prefix is intentional — Vercel/Lambda reserve the bare `AWS_` prefix. Without these keys, provisioning fails with "Missing credentials".
 
 ### External integrations
 

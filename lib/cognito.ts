@@ -17,10 +17,13 @@
  * https://cognito-idp.us-east-1.amazonaws.com/us-east-1_xxxxxxxxx — the region
  * MUST come from the issuer, not a generic AWS_REGION.
  *
- * Credentials: local dev uses APP_AWS_ACCESS_KEY_ID / APP_AWS_SECRET_ACCESS_KEY;
- * on Amplify pass undefined so the SDK default provider chain finds the SSR
- * compute role. That role needs cognito-idp:AdminCreateUser, AdminGetUser, and
- * AdminDisableUser on this user pool or these calls fail in prod.
+ * Credentials: this app is deployed on Vercel, which has NO attached AWS IAM
+ * role, so the SDK default provider chain finds nothing. APP_AWS_ACCESS_KEY_ID /
+ * APP_AWS_SECRET_ACCESS_KEY MUST be set (Vercel env + local) — they belong to an
+ * IAM user holding cognito-idp:AdminCreateUser, AdminGetUser, and AdminDisableUser
+ * on this user pool. The APP_AWS_ prefix is deliberate: Vercel/Lambda reserve the
+ * bare AWS_ prefix. If the keys are absent, getClient() falls back to undefined
+ * creds and every call fails with "Missing credentials".
  */
 
 import {
