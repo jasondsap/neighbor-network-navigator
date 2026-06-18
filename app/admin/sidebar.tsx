@@ -34,7 +34,7 @@ const NAV: NavItem[] = [
     { href: '/admin/resources',       label: 'Resources',       icon: Package },
     { href: '/admin/flags',           label: 'Flags',           icon: Flag,           pendingKey: 'flags' },
     { href: '/admin/access-reports',  label: 'Access Reports',  icon: AlertTriangle,  pendingKey: 'access' },
-    { href: '/admin/users',           label: 'Users',           icon: Users,          disabled: true, badge: 'Later' },
+    { href: '/admin/users',           label: 'Users',           icon: Users },
     { href: '/admin/export',          label: 'Export',          icon: Download,       disabled: true, badge: 'Phase E' },
 ];
 
