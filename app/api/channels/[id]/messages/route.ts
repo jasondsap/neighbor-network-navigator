@@ -1,10 +1,12 @@
 /**
  * app/api/channels/[id]/messages/route.ts
  *
- * GET    — messages in a channel (oldest-first). Side effect: marks the channel
- *          read for the caller (upserts message_read_status).
+ * GET    — messages in a channel (oldest-first), each with grouped reactions.
+ *          Side effect: marks the channel read for the caller (upserts
+ *          message_read_status).
  * POST    — { body, mentions } — post a message; notifies @user mentions and,
  *          in a DM, the partner.
+ * PUT    — ?messageId=… { body, mentions } — edit a message (sender only).
  * DELETE — ?messageId=… — soft-delete (sender or admin).
  *
  * Access enforced by getChannelForUser (404 unknown, 403 not allowed).
@@ -16,6 +18,7 @@ import { getSessionWithUserId } from '@/lib/auth';
 import { getChannelForUser } from '@/lib/messaging';
 import { createNotifications, type CreateNotificationInput } from '@/lib/notifications';
 import { parseMentions, toPreview, type Mention } from '@/lib/mentions';
+import { groupReactions, type ReactionRow } from '@/lib/reactions';
 
 async function uid(): Promise<{ ok: true; userId: string } | { ok: false; res: NextResponse }> {
     try {
@@ -61,7 +64,25 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
             [auth.userId, id]
         );
 
-        return NextResponse.json({ channel, messages });
+        // Attach reactions, grouped per message + emoji, popularity first.
+        const ids = messages.map((m) => m.id);
+        const reactionRows = ids.length
+            ? await query<ReactionRow>(
+                  `SELECT mr.message_id, mr.emoji, mr.user_id,
+                          COALESCE(NULLIF(trim(coalesce(u.first_name,'') || ' ' || coalesce(u.last_name,'')), ''), u.email) AS user_name
+                   FROM message_reactions mr
+                   JOIN users u ON u.id = mr.user_id
+                   WHERE mr.message_id = ANY($1::uuid[])
+                   ORDER BY mr.created_at`,
+                  [ids]
+              )
+            : [];
+        const byMessage = groupReactions(reactionRows as ReactionRow[], auth.userId);
+
+        return NextResponse.json({
+            channel,
+            messages: messages.map((m) => ({ ...m, reactions: byMessage[m.id] || [] })),
+        });
     } catch (err) {
         console.error('Messages list error:', err);
         return NextResponse.json({ error: 'Failed to load messages' }, { status: 500 });
@@ -148,6 +169,67 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     } catch (err) {
         console.error('Message send error:', err);
         return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
+    }
+}
+
+// ============================================================================
+// PUT — edit a message (sender only)
+// ============================================================================
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const auth = await uid();
+    if (!auth.ok) return auth.res;
+    const me = auth.userId;
+    const { id } = await params;
+
+    const messageId = request.nextUrl.searchParams.get('messageId');
+    if (!messageId) return NextResponse.json({ error: 'messageId is required' }, { status: 400 });
+
+    const { channel, canAccess } = await getChannelForUser(id, me);
+    if (!channel) return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
+    if (!canAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+    let body: any;
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    const text = String(body.body || '').trim();
+    if (!text) return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 });
+
+    try {
+        const existing = await queryOne<{ sender_id: string }>(
+            `SELECT sender_id FROM messages
+             WHERE id = $1::uuid AND channel_id = $2::uuid AND is_deleted = false`,
+            [messageId, id]
+        );
+        if (!existing) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+        if (existing.sender_id !== me) {
+            return NextResponse.json({ error: 'You can only edit your own messages' }, { status: 403 });
+        }
+
+        // Re-parse mentions from the edited body so the stored tokens stay in
+        // sync (editing does not re-notify — that would surprise recipients).
+        const mentions: Mention[] =
+            Array.isArray(body.mentions) && body.mentions.length ? body.mentions : parseMentions(text);
+
+        const message = await queryOne<any>(
+            `UPDATE messages
+                SET body = $1, mentions = $2::jsonb, is_edited = true, updated_at = NOW()
+              WHERE id = $3::uuid
+              RETURNING id, channel_id, sender_id, body, mentions, is_edited, created_at`,
+            [text, JSON.stringify(mentions), messageId]
+        );
+
+        const sender = await queryOne<any>(
+            `SELECT COALESCE(NULLIF(trim(coalesce(first_name,'') || ' ' || coalesce(last_name,'')), ''), email) AS sender_name
+             FROM users WHERE id = $1`,
+            [me]
+        );
+        return NextResponse.json({ success: true, message: { ...message, sender_name: sender?.sender_name } });
+    } catch (err) {
+        console.error('Message edit error:', err);
+        return NextResponse.json({ error: 'Failed to edit message' }, { status: 500 });
     }
 }
 

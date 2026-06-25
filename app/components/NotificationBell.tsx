@@ -10,12 +10,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, AtSign, MessageSquare, UserPlus, Check } from 'lucide-react';
+import { Bell, AtSign, MessageSquare, UserPlus, SmilePlus, Check } from 'lucide-react';
 import { timeAgo } from '@/lib/time';
 
 interface InboxItem {
     id: string;
-    type: 'mention' | 'dm' | 'channel_added';
+    type: 'mention' | 'dm' | 'channel_added' | 'reaction';
     source_type: string;
     channel_id: string | null;
     resource_id: string | null;
@@ -30,6 +30,7 @@ interface InboxItem {
 function itemIcon(t: InboxItem['type']) {
     if (t === 'mention') return <AtSign className="w-4 h-4 text-[#2E4A8E]" />;
     if (t === 'dm') return <MessageSquare className="w-4 h-4 text-[#2A8B8B]" />;
+    if (t === 'reaction') return <SmilePlus className="w-4 h-4 text-[#8B2332]" />;
     return <UserPlus className="w-4 h-4 text-[#E8B84A]" />;
 }
 
@@ -37,6 +38,7 @@ function itemLabel(n: InboxItem): string {
     const who = n.actor_name || 'Someone';
     if (n.type === 'mention') return `${who} mentioned you${n.channel_name ? ` in ${n.channel_name}` : ''}`;
     if (n.type === 'dm') return `${who} sent you a message`;
+    if (n.type === 'reaction') return `${who} reacted ${n.preview || ''} to your message`;
     return `${who} added you to ${n.channel_name || 'a channel'}`;
 }
 
