@@ -36,7 +36,8 @@ import {
 
 // Shared onboarding password. New users are forced to change it on first login.
 // Override via COGNITO_DEFAULT_TEMP_PASSWORD if it ever needs rotating.
-const DEFAULT_TEMP_PASSWORD = process.env.COGNITO_DEFAULT_TEMP_PASSWORD || 'Slcm!1234';
+// Exported so the welcome email can show the same value we provision with.
+export const DEFAULT_TEMP_PASSWORD = process.env.COGNITO_DEFAULT_TEMP_PASSWORD || 'Slcm!1234';
 
 function parseIssuer(): { region: string; userPoolId: string } | null {
     const issuer = process.env.COGNITO_ISSUER;

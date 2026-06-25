@@ -97,11 +97,17 @@ export default function AdminUsersPage() {
             }
             setShowCreate(false);
             setNewUser({ first_name: '', last_name: '', email: '', role: 'navigator' });
-            flashSuccess(
-                data.cognito?.status === 'already_exists'
-                    ? `${data.user.first_name} ${data.user.last_name} added — an existing Cognito login was linked.`
-                    : `${data.user.first_name} ${data.user.last_name} created. Temporary password: Slcm!1234 (they'll set their own on first login).`
-            );
+            {
+                const name = `${data.user.first_name} ${data.user.last_name}`.trim();
+                const emailNote = data.email_sent
+                    ? ` A welcome email with their login details was sent to ${data.user.email}.`
+                    : ` ⚠️ The welcome email could not be sent${data.email_error ? ` (${data.email_error})` : ''} — share the login details manually.`;
+                flashSuccess(
+                    (data.cognito?.status === 'already_exists'
+                        ? `${name} added — an existing Cognito login was linked.`
+                        : `${name} created. Temporary password: Slcm!1234 (they'll set their own on first login).`) + emailNote
+                );
+            }
             load();
         } catch (e: any) {
             setError(e?.message || 'Failed to create user');

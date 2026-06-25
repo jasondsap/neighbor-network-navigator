@@ -14,7 +14,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql, insert, logAuditEvent } from '@/lib/db';
 import { requireAdmin, NotAdminError } from '@/lib/admin';
 import { validateNewUser } from '@/lib/users-admin';
-import { provisionCognitoLogin } from '@/lib/cognito';
+import { provisionCognitoLogin, DEFAULT_TEMP_PASSWORD } from '@/lib/cognito';
+import { sendWelcomeEmail } from '@/lib/email/user-welcome';
 
 async function requireAdminResponse(): Promise<
     { ok: true; userId: string } | { ok: false; response: NextResponse }
@@ -114,12 +115,29 @@ export async function POST(request: NextRequest) {
             role: data.role,
         });
 
+        // 3) Email the new user their login details. Non-blocking: a failed
+        //    email must not undo a successfully-created account. The temp
+        //    password is only valid/relevant when we just created the login;
+        //    an already-existing login keeps its own password.
+        const welcome = await sendWelcomeEmail({
+            firstName: data.first_name,
+            email: data.email,
+            tempPassword: cognito.status === 'created' ? DEFAULT_TEMP_PASSWORD : null,
+        });
+
         await logAuditEvent(auth.userId, 'create', 'users', user.id, {
             role: data.role,
             cognito_status: cognito.status,
+            welcome_email_sent: welcome.sent,
         });
 
-        return NextResponse.json({ success: true, user, cognito });
+        return NextResponse.json({
+            success: true,
+            user,
+            cognito,
+            email_sent: welcome.sent,
+            email_error: welcome.error,
+        });
     } catch (err) {
         console.error('Admin user create error:', err);
         return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });

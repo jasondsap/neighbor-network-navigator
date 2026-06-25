@@ -33,6 +33,8 @@ COGNITO_CLIENT_ID
 COGNITO_CLIENT_SECRET
 COGNITO_ISSUER
 OPENAI_API_KEY            # Resource Assistant (gpt-4o)
+RESEND_API_KEY            # Resend — welcome email on admin user creation (lib/email/resend.ts)
+RESEND_FROM_EMAIL         # verified sender, e.g. "Louisville Neighbor Network <no-reply@yourdomain.org>"
 # Google Maps key for @react-google-maps/api (see app/components/ResourceMap.tsx)
 ```
 
