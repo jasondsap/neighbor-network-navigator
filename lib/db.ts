@@ -193,9 +193,26 @@ export async function getSubcategoriesWithCounts(category?: string) {
     `;
 }
 
+// Aggregates a resource's structured links (from resource_links) as a JSON array.
+// Used as a correlated subquery so callers keep `SELECT *` and bare-column WHERE clauses.
+const RESOURCE_LINKS_SUBQUERY = `(
+    SELECT COALESCE(json_agg(
+        json_build_object('source_field', rl.source_field, 'link_text', rl.link_text, 'url', rl.url)
+        ORDER BY rl.sort_order, rl.source_field, rl.id
+    ), '[]'::json)
+    FROM resource_links rl WHERE rl.resource_id = resources.id
+) AS links`;
+
 export async function getResourceById(id: string) {
     const result = (await sql`
-        SELECT * FROM resources WHERE id = ${id} AND is_active = TRUE
+        SELECT *, (
+            SELECT COALESCE(json_agg(
+                json_build_object('source_field', rl.source_field, 'link_text', rl.link_text, 'url', rl.url)
+                ORDER BY rl.sort_order, rl.source_field, rl.id
+            ), '[]'::json)
+            FROM resource_links rl WHERE rl.resource_id = resources.id
+        ) AS links
+        FROM resources WHERE id = ${id} AND is_active = TRUE
     `) as any[];
     return result[0] || null;
 }
@@ -247,7 +264,7 @@ export async function searchResources(opts: {
     }
 
     const sqlText = `
-        SELECT *
+        SELECT *, ${RESOURCE_LINKS_SUBQUERY}
         FROM resources
         WHERE ${clauses.join(' AND ')}
         ORDER BY

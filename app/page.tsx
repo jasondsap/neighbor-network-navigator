@@ -131,6 +131,40 @@ interface Resource {
     point_of_contact?: string;
     source: string;
     distance_miles?: number;
+    links?: ResourceLink[];
+}
+
+interface ResourceLink {
+    source_field: string;
+    link_text?: string;
+    url: string;
+}
+
+// Friendly labels for the spreadsheet "Source Column" each link came from.
+const LINK_FIELD_LABEL: Record<string, string> = {
+    'Tips/Tricks': 'How to apply',
+    'Required Documents': 'Documents / forms',
+    'Qualifier - Income': 'Income guidelines',
+    'Qualifier - Geography': 'Service area',
+    'Qualifier - Cohort': 'Eligibility',
+    'Qualifier - Misc': 'Eligibility',
+    'Service Description': 'More info',
+    'Notes': 'More info',
+    'Address(es)': 'Locations',
+    'Email(s)': 'Email / contact',
+    'Phone #(s)': 'Phone / contact',
+    'Hours': 'Hours',
+};
+
+// Compact, human-readable rendering of a URL (drops protocol, trailing slash, truncates).
+function prettyUrl(url: string): string {
+    const s = url.replace(/^mailto:/, '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+    return s.length > 48 ? s.slice(0, 47) + '…' : s;
+}
+
+function hrefForLink(url: string): string {
+    if (/^(https?:|mailto:)/i.test(url)) return url;
+    return `https://${url}`;
 }
 
 interface Category {
@@ -1052,6 +1086,38 @@ export default function ResourceNavigator() {
                                     <p className="text-gray-600">{selectedResource.notes}</p>
                                 </div>
                             )}
+                            {(() => {
+                                const links = (selectedResource.links ?? []).filter(
+                                    (l) => l.source_field !== 'Program/Org Website'
+                                );
+                                if (links.length === 0) return null;
+                                return (
+                                    <div className="p-4 bg-[#2E4A8E]/5 rounded-xl">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <ExternalLink className="w-5 h-5 text-[#2E4A8E]" />
+                                            <h3 className="font-semibold text-gray-900">Links &amp; Forms</h3>
+                                        </div>
+                                        <ul className="space-y-2">
+                                            {links.map((l, i) => (
+                                                <li key={i} className="text-sm leading-snug">
+                                                    <span className="text-gray-500">
+                                                        {LINK_FIELD_LABEL[l.source_field] ?? l.source_field}:{' '}
+                                                    </span>
+                                                    <a
+                                                        href={hrefForLink(l.url)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title={l.link_text?.trim() || l.url}
+                                                        className="text-[#2E4A8E] underline hover:text-[#243d73] break-words"
+                                                    >
+                                                        {prettyUrl(l.url)}
+                                                    </a>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                );
+                            })()}
                             {selectedResource.point_of_contact && (
                                 <div className="p-4 bg-gray-50 rounded-xl">
                                     <h3 className="font-semibold text-gray-900 mb-2">Point of Contact</h3>
