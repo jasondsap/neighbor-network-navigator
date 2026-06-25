@@ -19,6 +19,7 @@ import {
     type FieldError,
 } from '../components/ResourceForm';
 import { VersionHistory, type Version } from '../components/VersionHistory';
+import { LinksEditor, type AdminLink } from '../components/LinksEditor';
 
 interface Resource extends ResourceFormData {
     id: string;
@@ -32,6 +33,7 @@ export default function EditResourcePage() {
 
     const [resource, setResource] = useState<Resource | null>(null);
     const [versions, setVersions] = useState<Version[]>([]);
+    const [links, setLinks] = useState<AdminLink[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -58,6 +60,7 @@ export default function EditResourcePage() {
                     : '',
             } as Resource);
             setVersions(data.versions);
+            setLinks(data.links ?? []);
         } catch (e: any) {
             setLoadError(e?.message || 'Failed to load');
         } finally {
@@ -159,6 +162,10 @@ export default function EditResourcePage() {
                         router.push(`/admin/resources?saved=${encodeURIComponent(msg)}`);
                     }}
                 />
+            </div>
+
+            <div className="mt-6 max-w-3xl">
+                <LinksEditor resourceId={id} initialLinks={links} />
             </div>
         </div>
     );

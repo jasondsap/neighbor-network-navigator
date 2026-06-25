@@ -63,9 +63,17 @@ export async function GET(
             ORDER BY v.version_number DESC
         `;
 
+        const links = await sql`
+            SELECT id, source_field, link_text, url, sort_order
+            FROM resource_links
+            WHERE resource_id = ${id}
+            ORDER BY sort_order, source_field, id
+        `;
+
         return NextResponse.json({
             resource: (resource as any[])[0],
             versions,
+            links,
         });
     } catch (err) {
         console.error('Admin resource get error:', err);
