@@ -46,6 +46,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    // Matches /admin and everything under it, plus /api/admin/* API routes
-    matcher: ['/admin/:path*', '/api/admin/:path*'],
+    // Matches /admin and everything under it, plus /api/admin/* API routes,
+    // and the messaging page (redirect to sign-in when logged out).
+    matcher: ['/admin/:path*', '/api/admin/:path*', '/messages/:path*'],
 };

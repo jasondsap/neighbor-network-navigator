@@ -8,7 +8,7 @@ import {
     Mail, Clock, ChevronRight, Filter, X, Loader2,
     MessageCircle, Send, Sparkles, ExternalLink, FileText,
     Info, CheckCircle, AlertCircle, Lightbulb, GraduationCap, Shield,
-    DoorOpen, Accessibility, LogOut, Star, Map, List, Bus
+    DoorOpen, Accessibility, LogOut, Star, Map, List, Bus, MessageSquare
 } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import dynamic from 'next/dynamic';
@@ -16,6 +16,7 @@ import BusDirectionsModal from './components/BusDirectionsModal';
 import { FlagResourceButton } from './components/FlagResourceModal';
 import { UnableToAccessButton } from './components/UnableToAccessModal';
 import { AdminHeaderLink } from './components/AdminHeaderLink';
+import { NotificationBell } from './components/NotificationBell';
 
 // Dynamically import the map component to avoid SSR issues
 const ResourceMap = dynamic(() => import('./components/ResourceMap'), {
@@ -395,6 +396,18 @@ export default function ResourceNavigator() {
         await signOut({ callbackUrl: '/auth/signin' });
     };
 
+    // Deep-link: /?resource=<id> (e.g. from an @resource mention) opens the detail modal.
+    useEffect(() => {
+        const rid = new URLSearchParams(window.location.search).get('resource');
+        if (!rid) return;
+        let cancelled = false;
+        fetch(`/api/resources/${rid}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => { if (!cancelled && d?.resource) setSelectedResource(d.resource); })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, []);
+
     // ------------------------------------------------------------------------
     // Auth loading / redirecting splash screens
     // ------------------------------------------------------------------------
@@ -445,7 +458,16 @@ export default function ResourceNavigator() {
                             >
                                 Help
                             </button>
-                            <AdminHeaderLink />  {/* ← add this line */}
+                            <button
+                                onClick={() => router.push('/messages')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-[#F5F0E6]/90 hover:text-[#F5F0E6] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                                title="Messages"
+                            >
+                                <MessageSquare className="w-4 h-4" />
+                                <span className="hidden md:inline">Messages</span>
+                            </button>
+                            <NotificationBell />
+                            <AdminHeaderLink />
                             {user && (user.name || user.email) && (
                                 <span className="text-[#F5F0E6]/80 text-sm hidden md:block">
                                     Welcome, {user.name || user.email}
