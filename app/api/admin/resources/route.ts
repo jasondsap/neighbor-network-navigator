@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
                 address, city, state, zip, latitude, longitude,
                 phone, email, website, hours, point_of_contact,
                 qualifier_geography, qualifier_age, qualifier_income, qualifier_cohort, qualifier_misc,
-                required_documents, tips_tricks, notes,
+                required_documents, tips_tricks, notes, languages,
                 source, is_active, created_by, updated_by
             ) VALUES (
                 ${data.organization_name}, ${data.program_name}, ${data.category}, ${data.subcategory}, ${data.service_type},
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
                 ${data.address}, ${data.city}, ${data.state}, ${data.zip}, ${data.latitude}, ${data.longitude},
                 ${data.phone}, ${data.email}, ${data.website}, ${data.hours}, ${data.point_of_contact},
                 ${data.qualifier_geography}, ${data.qualifier_age}, ${data.qualifier_income}, ${data.qualifier_cohort}, ${data.qualifier_misc},
-                ${data.required_documents}, ${data.tips_tricks}, ${data.notes},
+                ${data.required_documents}, ${data.tips_tricks}, ${data.notes}, ${data.languages},
                 'local', TRUE, ${auth.userId}, ${auth.userId}
             )
             RETURNING *
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
                 phone, email, website, hours, point_of_contact,
                 qualifier_geography, qualifier_age, qualifier_income,
                 qualifier_cohort, qualifier_misc,
-                required_documents, tips_tricks, notes, is_active
+                required_documents, tips_tricks, notes, is_active, languages
             ) VALUES (
                 ${created.id}, 1, ${auth.userId},
                 ${'Created: ' + summaryCheck.value}, 'update',
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
                 ${created.phone}, ${created.email}, ${created.website}, ${created.hours}, ${created.point_of_contact},
                 ${created.qualifier_geography}, ${created.qualifier_age}, ${created.qualifier_income},
                 ${created.qualifier_cohort}, ${created.qualifier_misc},
-                ${created.required_documents}, ${created.tips_tricks}, ${created.notes}, ${created.is_active}
+                ${created.required_documents}, ${created.tips_tricks}, ${created.notes}, ${created.is_active}, ${created.languages}
             )
         `;
 

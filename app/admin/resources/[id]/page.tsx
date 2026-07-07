@@ -55,6 +55,8 @@ export default function EditResourcePage() {
                 ),
                 id: r.id,
                 is_active: r.is_active,
+                // Arrays survive the String(v) mapping above only as "a,b" — restore them
+                languages: Array.isArray(r.languages) ? r.languages : [],
                 last_updated_at: r.last_updated_at
                     ? new Date(r.last_updated_at).toISOString().slice(0, 10)
                     : '',

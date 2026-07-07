@@ -63,6 +63,8 @@ Non-admin API routes gate with `requireAuth()` (`lib/auth.ts`), which throws `'U
 
 Resource edits are snapshotted by a **Postgres trigger** (`fn_snapshot_resource`) into `resource_versions`. The trigger reads editor metadata from transaction-local session vars. To set them, `lib/resource-admin.ts` `buildEditorContextStatements()` emits `set_config('app.editor_id'/'app.edit_summary'/'app.edit_kind', ..., true)` statements, and the route runs them **in the same `sql.transaction([...])` batch** as the UPDATE (Neon serverless can't span `BEGIN/COMMIT` across awaits). See `app/api/admin/resources/[id]/route.ts` for the canonical PUT/DELETE pattern. An `edit_summary` is required on every mutating admin action, including archive.
 
+**Adding a column to `resources` touches six places** (columns are enumerated by hand throughout; miss one and data is silently dropped): the `resources` and `resource_versions` tables, `fn_snapshot_resource`'s INSERT, the `trg_snapshot_resource` trigger's `WHEN` clause (it only fires when a listed column changes), and the hand-written column lists in the create (POST), update (PUT), and version-restore routes. `resources.languages` (`text[]`, canonical vocabulary in `lib/languages.ts`) followed this path.
+
 ### Three data domains
 
 Each has a shared lib module of canonical option/status vocabulary used by both the user-facing modal and the admin queue, plus a validation function:

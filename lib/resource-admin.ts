@@ -9,6 +9,7 @@
  */
 
 import { sql } from './db';
+import { normalizeLanguages } from './languages';
 
 // ============================================================================
 // Editor context for the Postgres versioning trigger
@@ -72,6 +73,7 @@ export interface ResourceInput {
     required_documents?: string | null;
     tips_tricks?:        string | null;
     notes?:              string | null;
+    languages:           string[];                  // from LANGUAGE_OPTIONS (lib/languages.ts)
     is_active?:          boolean;
 }
 
@@ -124,6 +126,11 @@ export function normalizeResourceInput(
         errors.push({ field: 'longitude', message: 'Longitude must be between -180 and 180' });
     }
 
+    const languagesResult = normalizeLanguages(raw.languages);
+    if (languagesResult.error) {
+        errors.push({ field: 'languages', message: languagesResult.error });
+    }
+
     const data: ResourceInput = {
         organization_name: organization_name || '',
         program_name: clean(raw.program_name),
@@ -152,6 +159,7 @@ export function normalizeResourceInput(
         required_documents: clean(raw.required_documents),
         tips_tricks: clean(raw.tips_tricks),
         notes: clean(raw.notes),
+        languages: languagesResult.value,
         is_active: typeof raw.is_active === 'boolean' ? raw.is_active : true,
     };
 

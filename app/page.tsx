@@ -8,8 +8,9 @@ import {
     Mail, Clock, ChevronRight, Filter, X, Loader2,
     MessageCircle, Send, Sparkles, ExternalLink, FileText,
     Info, CheckCircle, AlertCircle, Lightbulb, GraduationCap, Shield,
-    DoorOpen, Accessibility, LogOut, Star, Map, List, Bus
+    DoorOpen, Accessibility, LogOut, Star, Map, List, Bus, Languages
 } from 'lucide-react';
+import { LANGUAGE_OPTIONS } from '@/lib/languages';
 import { useSession, signOut } from 'next-auth/react';
 import dynamic from 'next/dynamic';
 import BusDirectionsModal from './components/BusDirectionsModal';
@@ -131,6 +132,7 @@ interface Resource {
     tips_tricks?: string;
     notes?: string;
     point_of_contact?: string;
+    languages?: string[];
     source: string;
     distance_miles?: number;
     links?: ResourceLink[];
@@ -208,6 +210,7 @@ export default function ResourceNavigator() {
     const [showFilters, setShowFilters] = useState(false);
     const [zipFilter, setZipFilter] = useState('');
     const [sourceFilter, setSourceFilter] = useState('all');
+    const [languageFilter, setLanguageFilter] = useState('all');
     const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
     const [showAssistant, setShowAssistant] = useState(false);
     const [assistantQuery, setAssistantQuery] = useState('');
@@ -314,6 +317,7 @@ export default function ResourceNavigator() {
                 params.append('subcategory', subcategory);
             }
             if (zipFilter) params.append('zip', zipFilter);
+            if (languageFilter !== 'all') params.append('language', languageFilter);
 
             const response = await fetch(`/api/resource-search?${params}`);
             const data = await response.json();
@@ -511,13 +515,14 @@ export default function ResourceNavigator() {
                                         {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                                         <span className="hidden md:inline">Search</span>
                                     </button>
-                                    {(searchQuery || selectedCategory !== 'all' || zipFilter || sourceFilter !== 'all') && (
+                                    {(searchQuery || selectedCategory !== 'all' || zipFilter || sourceFilter !== 'all' || languageFilter !== 'all') && (
                                         <button
                                             onClick={() => {
                                                 setSearchQuery('');
                                                 setSelectedCategory('all');
                                                 setZipFilter('');
                                                 setSourceFilter('all');
+                                                setLanguageFilter('all');
                                                 handleSearch('', 'all');
                                             }}
                                             className="px-4 py-4 bg-white text-gray-600 rounded-xl hover:bg-gray-100 transition-colors shadow-lg flex items-center gap-2"
@@ -556,6 +561,19 @@ export default function ResourceNavigator() {
                                                 <option value="all">All Sources</option>
                                                 <option value="local">Local Resources Only</option>
                                                 <option value="samhsa">SAMHSA Treatment Only</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700 mb-1 block">Language</label>
+                                            <select
+                                                value={languageFilter}
+                                                onChange={(e) => setLanguageFilter(e.target.value)}
+                                                className="px-3 py-2 border border-gray-200 rounded-lg"
+                                            >
+                                                <option value="all">Any Language</option>
+                                                {LANGUAGE_OPTIONS.map((lang) => (
+                                                    <option key={lang} value={lang}>{lang}</option>
+                                                ))}
                                             </select>
                                         </div>
                                         <button
@@ -731,6 +749,13 @@ export default function ResourceNavigator() {
                                                 )}
                                                 {resource.source === 'SAMHSA' && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">SAMHSA</span>}
                                                 {resource.distance_miles && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">{resource.distance_miles.toFixed(1)} mi</span>}
+                                                {resource.languages && resource.languages.length > 0 && (
+                                                    <span className="flex items-center gap-1 px-2 py-0.5 bg-[#2A8B8B]/10 text-[#2A8B8B] rounded-full text-xs font-medium">
+                                                        <Languages className="w-3 h-3" />
+                                                        {resource.languages.slice(0, 2).join(' · ')}
+                                                        {resource.languages.length > 2 && ` +${resource.languages.length - 2}`}
+                                                    </span>
+                                                )}
                                             </div>
                                             {resource.service_description && <p className="text-sm text-gray-600 line-clamp-2 mb-3">{resource.service_description}</p>}
                                             <div className="space-y-1 text-sm">
@@ -1045,6 +1070,21 @@ export default function ResourceNavigator() {
                                         <h3 className="font-semibold text-amber-900">Hours</h3>
                                     </div>
                                     <p className="text-amber-800">{selectedResource.hours}</p>
+                                </div>
+                            )}
+                            {selectedResource.languages && selectedResource.languages.length > 0 && (
+                                <div className="p-4 bg-[#2A8B8B]/10 rounded-xl">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Languages className="w-5 h-5 text-[#2A8B8B]" />
+                                        <h3 className="font-semibold text-gray-900">Languages Supported</h3>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedResource.languages.map((lang) => (
+                                            <span key={lang} className="px-3 py-1 bg-white text-[#2A8B8B] rounded-full text-sm font-medium">
+                                                {lang}
+                                            </span>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                             {(selectedResource.qualifier_geography || selectedResource.qualifier_age || selectedResource.qualifier_income || selectedResource.qualifier_cohort) && (

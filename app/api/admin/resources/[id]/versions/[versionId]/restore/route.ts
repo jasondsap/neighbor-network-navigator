@@ -99,6 +99,7 @@ export async function POST(
                 required_documents  = ${v.required_documents},
                 tips_tricks         = ${v.tips_tricks},
                 notes               = ${v.notes},
+                languages           = COALESCE(${v.languages}::text[], '{}'::text[]),
                 is_active           = ${v.is_active},
                 updated_by          = ${userId},
                 updated_at          = NOW()

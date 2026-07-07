@@ -143,6 +143,7 @@ export async function PUT(
                 required_documents  = ${data.required_documents},
                 tips_tricks         = ${data.tips_tricks},
                 notes               = ${data.notes},
+                languages           = ${data.languages},
                 updated_by          = ${auth.userId},
                 updated_at          = NOW()
             WHERE id = ${id}

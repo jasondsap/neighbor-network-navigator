@@ -105,6 +105,7 @@ async function searchSAMHSA(query: string, lat: number, lng: number, radiusMiles
             required_documents: null,
             tips_tricks: null,
             notes: null,
+            languages: [],
             point_of_contact: null,
             source: 'SAMHSA',
             distance_miles: facility.miles,
@@ -155,6 +156,7 @@ export async function GET(request: NextRequest) {
     const category    = sp.get('category')    || 'all';
     const subcategory = sp.get('subcategory') || undefined;
     const zip         = sp.get('zip')         || undefined;
+    const language    = sp.get('language')    || undefined;
     const source      = sp.get('source')      || 'all';
     const action      = sp.get('action')      || 'search';
     const lat         = parseFloat(sp.get('lat')    || String(LOUISVILLE_LAT));
@@ -183,7 +185,7 @@ export async function GET(request: NextRequest) {
         let samhsa: any[] = [];
 
         if (source === 'all' || source === 'local') {
-            const rows = await searchResources({ query, category, subcategory, zip, limit: 1000 });
+            const rows = await searchResources({ query, category, subcategory, zip, language, limit: 1000 });
             local = normalizeLocal(rows as any[]);
         }
 
@@ -242,6 +244,7 @@ export async function POST(request: NextRequest) {
                 category,
                 subcategory,
                 zip: filters.zipCode,
+                language: filters.language,
                 limit: filters.limit ?? 1000,
             });
             local = normalizeLocal(rows as any[]);

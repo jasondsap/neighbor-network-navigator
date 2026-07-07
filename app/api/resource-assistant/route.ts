@@ -27,6 +27,7 @@ interface MatchedResource {
     eligibility?: string;
     hours?: string;
     services?: string;
+    languages?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -70,6 +71,9 @@ export async function POST(request: NextRequest) {
                     .join('; ') || r.qualifier_geography,
             hours: r.hours,
             services: r.service_description || r.subcategory,
+            languages: Array.isArray(r.languages) && r.languages.length > 0
+                ? r.languages.join(', ')
+                : undefined,
         }));
 
         const prompt = `You are the Resource Assistant inside the SLCM Neighbor Network Navigator, a digital workspace that supports community navigators working with neighbors in need.
@@ -102,6 +106,7 @@ VERY IMPORTANT RULES:
    - Do NOT hallucinate extra details that weren't provided (like hours, eligibility) unless the information is explicitly included.
 4. Always write in warm, compassionate, non-clinical language.
 5. Avoid giving medical, legal, or financial advice. You can help them connect to appropriate resources instead.
+6. If the neighbor's context suggests a language need and a resource lists "languages", prioritize and mention that language support. Never claim a resource speaks a language that isn't listed.
 
 TONE GUIDELINES:
 - Strength-based

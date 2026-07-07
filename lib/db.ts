@@ -226,9 +226,10 @@ export async function searchResources(opts: {
     category?: string;
     subcategory?: string;
     zip?: string;
+    language?: string;
     limit?: number;
 }) {
-    const { query: q, category, subcategory, zip, limit = 1000 } = opts;
+    const { query: q, category, subcategory, zip, language, limit = 1000 } = opts;
 
     // Build dynamically because Neon's tagged template chains awkwardly with
     // lots of optional predicates. Parameterized placeholders keep it safe.
@@ -260,6 +261,12 @@ export async function searchResources(opts: {
     if (zip) {
         clauses.push(`zip LIKE $${p}`);
         params.push(`${zip}%`);
+        p += 1;
+    }
+
+    if (language && language !== 'all') {
+        clauses.push(`$${p} = ANY(languages)`);
+        params.push(language);
         p += 1;
     }
 

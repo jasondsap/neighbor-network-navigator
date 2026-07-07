@@ -12,6 +12,7 @@
 
 import { useState, useEffect } from 'react';
 import { Loader2, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { LANGUAGE_OPTIONS } from '@/lib/languages';
 
 const CATEGORY_OPTIONS = [
     'Adult Education',
@@ -60,6 +61,7 @@ export interface ResourceFormData {
     required_documents: string;
     tips_tricks: string;
     notes: string;
+    languages: string[];
 }
 
 export const EMPTY_FORM: ResourceFormData = {
@@ -88,6 +90,7 @@ export const EMPTY_FORM: ResourceFormData = {
     required_documents: '',
     tips_tricks: '',
     notes: '',
+    languages: [],
 };
 
 export interface FieldError {
@@ -118,6 +121,16 @@ export function ResourceForm({ mode, initial, onSubmit, onCancel }: Props) {
         setForm(initial);
         setIsDirty(false);
     }, [initial]);
+
+    function toggleLanguage(lang: string) {
+        setForm(f => ({
+            ...f,
+            languages: f.languages.includes(lang)
+                ? f.languages.filter(l => l !== lang)
+                : [...f.languages, lang],
+        }));
+        setIsDirty(true);
+    }
 
     function update<K extends keyof ResourceFormData>(key: K, value: string) {
         setForm(f => ({ ...f, [key]: value }));
@@ -391,6 +404,27 @@ export function ResourceForm({ mode, initial, onSubmit, onCancel }: Props) {
                         className={inputClass()}
                     />
                 </Field>
+            </Section>
+
+            <Section title="Languages Supported">
+                <div className="md:col-span-2">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
+                        {LANGUAGE_OPTIONS.map(lang => (
+                            <label key={lang} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={form.languages.includes(lang)}
+                                    onChange={() => toggleLanguage(lang)}
+                                    className="w-4 h-4 rounded border-gray-300 text-[#2E4A8E] focus:ring-[#2E4A8E]"
+                                />
+                                {lang}
+                            </label>
+                        ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                        Check languages this resource can serve beyond English. Leave all unchecked if unknown.
+                    </p>
+                </div>
             </Section>
 
             <Section title="Process Guidance">
