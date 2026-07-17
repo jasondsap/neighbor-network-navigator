@@ -115,6 +115,8 @@ interface Resource {
     category: string;
     subcategory?: string;
     service_description?: string;
+    capacity?: string;
+    last_updated_at?: string;
     address?: string;
     city?: string;
     state?: string;
@@ -169,6 +171,12 @@ function prettyUrl(url: string): string {
 function hrefForLink(url: string): string {
     if (/^(https?:|mailto:)/i.test(url)) return url;
     return `https://${url}`;
+}
+
+// last_updated_at may be 'YYYY-MM-DD' text or a full ISO timestamp; anything else shows as-is.
+function formatVerifiedDate(value: string): string {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+    return m ? `${m[2]}/${m[3]}/${m[1]}` : value;
 }
 
 interface Category {
@@ -761,6 +769,8 @@ export default function ResourceNavigator() {
                                             <div className="space-y-1 text-sm">
                                                 {resource.phone && <div className="flex items-center gap-2 text-gray-500"><Phone className="w-3.5 h-3.5" /><span className="line-clamp-1">{formatPhone(resource.phone)}</span></div>}
                                                 {resource.address && <div className="flex items-center gap-2 text-gray-500"><MapPin className="w-3.5 h-3.5 flex-shrink-0" /><span className="line-clamp-1">{resource.address}</span></div>}
+                                                {resource.capacity && <div className="flex items-center gap-2 text-gray-500"><Users className="w-3.5 h-3.5 flex-shrink-0" /><span className="line-clamp-1">Capacity: {resource.capacity}</span></div>}
+                                                {resource.last_updated_at && <div className="flex items-center gap-2 text-gray-500"><CheckCircle className="w-3.5 h-3.5 flex-shrink-0" /><span className="line-clamp-1">Verified {formatVerifiedDate(resource.last_updated_at)}</span></div>}
                                             </div>
                                             {resource.address && (
                                                 <button
@@ -1070,6 +1080,28 @@ export default function ResourceNavigator() {
                                         <h3 className="font-semibold text-amber-900">Hours</h3>
                                     </div>
                                     <p className="text-amber-800">{selectedResource.hours}</p>
+                                </div>
+                            )}
+                            {(selectedResource.capacity || selectedResource.last_updated_at) && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {selectedResource.capacity && (
+                                        <div className="p-3 bg-gray-50 rounded-lg flex items-center gap-3">
+                                            <Users className="w-5 h-5 text-[#2E4A8E] flex-shrink-0" />
+                                            <div>
+                                                <p className="text-xs text-gray-500">Capacity / Availability</p>
+                                                <p className="text-sm font-medium text-gray-900">{selectedResource.capacity}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {selectedResource.last_updated_at && (
+                                        <div className="p-3 bg-gray-50 rounded-lg flex items-center gap-3">
+                                            <CheckCircle className="w-5 h-5 text-[#2A8B8B] flex-shrink-0" />
+                                            <div>
+                                                <p className="text-xs text-gray-500">Last Verified</p>
+                                                <p className="text-sm font-medium text-gray-900">{formatVerifiedDate(selectedResource.last_updated_at)}</p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             {selectedResource.languages && selectedResource.languages.length > 0 && (
